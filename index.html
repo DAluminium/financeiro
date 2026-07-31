@@ -578,7 +578,7 @@ const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
 const JSONBIN_KEY = '$2a$10$qNzq0CuT5x/WTpaVrTxaw.sY19M0txIKTyqSStOtIiUs7QfVIFIoy';
 let JSONBIN_BIN_ID = localStorage.getItem('fin-bin-id')||'';
 
-let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0} };
+let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
@@ -587,8 +587,8 @@ const ADMINS_FIN=[
   {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', tempPass:false},
   {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', tempPass:true},
 ];
-function getFinUsers(){ try{ return JSON.parse(localStorage.getItem('fin-users')||'[]'); }catch{ return []; } }
-function saveFinUsers(u){ localStorage.setItem('fin-users',JSON.stringify(u)); }
+function getFinUsers(){ return data.usuarios||[]; }
+function saveFinUsers(u){ data.usuarios=u; }
 function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
 function showAdminBtn(s){ document.getElementById('admin-btn').style.display=s?'flex':'none'; }
@@ -655,7 +655,7 @@ function changeMyPass(){
     const name=sessionStorage.getItem('fin-user')||'';
     const users=getFinUsers();
     const idx=users.findIndex(u=>u.name===name);
-    if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); }
+    if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); persist(); }
   }
   alert('Senha alterada com sucesso! ✅');
 }
@@ -675,7 +675,7 @@ function openChangePassUser(found){
   if(prompt('Confirme:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
   const users=getFinUsers();
   const idx=users.findIndex(u=>u.username===found.username);
-  if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); }
+  if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); persist(); }
   alert('Senha alterada com sucesso! ✅');
 }
 
@@ -708,11 +708,25 @@ function addUserFin(){
   if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
   users.push({name,username,password:pass,role,active:true,tempPass:true});
   saveFinUsers(users);
+  persist();
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   renderUserListFin();
 }
-function toggleFinUser(idx){ const u=getFinUsers(); u[idx].active=u[idx].active===false; saveFinUsers(u); renderUserListFin(); }
-function removeFinUser(idx){ const u=getFinUsers(); if(!confirm(`Remover "${u[idx].name}"?`)) return; u.splice(idx,1); saveFinUsers(u); renderUserListFin(); }
+function toggleFinUser(idx){
+  const u=getFinUsers();
+  u[idx].active=u[idx].active===false?true:false;
+  saveFinUsers(u);
+  persist();
+  renderUserListFin();
+}
+function removeFinUser(idx){
+  const u=getFinUsers();
+  if(!confirm(`Remover "${u[idx].name}"?`)) return;
+  u.splice(idx,1);
+  saveFinUsers(u);
+  persist();
+  renderUserListFin();
+}
 
 // ---- JSONBIN SYNC ----
 async function ensureBin(){
