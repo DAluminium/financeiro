@@ -173,6 +173,12 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   <div class="topbar-logo">DALUMINIUM <span>Financeiro</span></div>
   <div class="topbar-actions">
     <span id="sync-status" style="font-size:11px;opacity:.8"></span>
+    <button id="admin-btn" class="btn btn-ghost btn-sm" onclick="openUserAdmin()" style="display:none">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="changeMyPass()">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Senha
+    </button>
     <button class="btn btn-ghost btn-sm" onclick="exportRelatorio()">
       <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar
     </button>
@@ -493,6 +499,41 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   </div>
 </div>
 
+<!-- MODAL USUÁRIOS -->
+<div class="modal-overlay" id="user-admin-overlay">
+  <div class="modal" style="width:min(500px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">👥 Gerenciar Usuários</div>
+      <button class="act" onclick="closeUserAdmin()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        🔐 <strong>Admins:</strong> Ander Reis · Aretusa Sendeski — acessos fixos, não podem ser alterados aqui.
+      </div>
+      <div id="user-list-fin" style="margin-bottom:16px"></div>
+      <div style="border-top:1px solid var(--gray-2);padding-top:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Novo usuário</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Nome completo</label><input id="nu-name" type="text" placeholder="Ex: Thielles Ricardo"></div>
+          <div class="form-group"><label>Usuário (login)</label><input id="nu-username" type="text" placeholder="Ex: thielles"></div>
+          <div class="form-group"><label>Senha temporária</label><input id="nu-pass" type="text" placeholder="Ex: senha123"></div>
+          <div class="form-group"><label>Função</label>
+            <select id="nu-role">
+              <option value="financeiro">Financeiro</option>
+              <option value="gerente">Gerente</option>
+              <option value="consulta">Somente consulta</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-teal btn-sm" style="margin-top:10px" onclick="addUserFin()">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Adicionar usuário
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeUserAdmin()">Fechar</button></div>
+  </div>
+</div>
+
 <script>
 // ---- DATA ----
 const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
@@ -503,28 +544,137 @@ let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inte
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
-// ---- LOGIN ----
-const ADMIN_USER = 'ander reis', ADMIN_PASS = '@nd3r_R3is';
+// ---- LOGIN & USER MANAGEMENT ----
+const ADMINS_FIN=[
+  {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', tempPass:false},
+  {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', tempPass:true},
+];
+function getFinUsers(){ try{ return JSON.parse(localStorage.getItem('fin-users')||'[]'); }catch{ return []; } }
+function saveFinUsers(u){ localStorage.setItem('fin-users',JSON.stringify(u)); }
+function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
+function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
+function showAdminBtn(s){ document.getElementById('admin-btn').style.display=s?'flex':'none'; }
 
 function doLogin(){
   const user=document.getElementById('login-user').value.trim().toLowerCase();
   const pass=document.getElementById('login-pass').value;
   const err=document.getElementById('login-error');
-  if((user===ADMIN_USER&&pass===ADMIN_PASS)||(user==='aretusa'&&pass==='Dal321')){
+  err.style.display='none';
+
+  // Check admins
+  const admin=ADMINS_FIN.find(a=>a.user===user);
+  if(admin){
+    const saved=getAdminPass(admin.user);
+    const correct=saved||admin.pass;
+    const isTemp=!saved&&admin.tempPass;
+    if(correct===pass){
+      sessionStorage.setItem('fin-logged','true');
+      sessionStorage.setItem('fin-user',admin.name);
+      sessionStorage.setItem('fin-role','admin');
+      sessionStorage.setItem('fin-admin-key',admin.user);
+      document.getElementById('login-screen').classList.remove('active');
+      showAdminBtn(true);
+      if(isTemp) setTimeout(()=>openChangePassAdmin(admin),500);
+      init();
+      return;
+    }
+  }
+
+  // Check regular users
+  const users=getFinUsers();
+  const found=users.find(u=>u.username.toLowerCase()===user&&u.password===pass&&u.active!==false);
+  if(found){
     sessionStorage.setItem('fin-logged','true');
+    sessionStorage.setItem('fin-user',found.name);
+    sessionStorage.setItem('fin-role',found.role||'user');
     document.getElementById('login-screen').classList.remove('active');
-    err.style.display='none';
+    showAdminBtn(false);
+    if(found.tempPass) setTimeout(()=>openChangePassUser(found),500);
     init();
   } else {
     err.style.display='block';
     document.getElementById('login-pass').value='';
   }
 }
+
 function doLogout(){
   if(!confirm('Deseja sair?')) return;
-  sessionStorage.removeItem('fin-logged');
+  ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   document.getElementById('login-screen').classList.add('active');
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
 }
+
+function changeMyPass(){
+  const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
+  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
+  if(isAdmin()){
+    const key=sessionStorage.getItem('fin-admin-key')||'';
+    const saved=JSON.parse(localStorage.getItem('fin-admin-passes')||'{}');
+    saved[key]=nova.trim(); localStorage.setItem('fin-admin-passes',JSON.stringify(saved));
+  } else {
+    const name=sessionStorage.getItem('fin-user')||'';
+    const users=getFinUsers();
+    const idx=users.findIndex(u=>u.name===name);
+    if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); }
+  }
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function openChangePassAdmin(admin){
+  const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
+  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
+  const saved=JSON.parse(localStorage.getItem('fin-admin-passes')||'{}');
+  saved[admin.user]=nova.trim(); localStorage.setItem('fin-admin-passes',JSON.stringify(saved));
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function openChangePassUser(found){
+  const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
+  if(prompt('Confirme:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
+  const users=getFinUsers();
+  const idx=users.findIndex(u=>u.username===found.username);
+  if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); }
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function openUserAdmin(){ if(!isAdmin()){ alert('Acesso restrito.'); return; } renderUserListFin(); document.getElementById('user-admin-overlay').classList.add('open'); }
+function closeUserAdmin(){ document.getElementById('user-admin-overlay').classList.remove('open'); }
+
+function renderUserListFin(){
+  const users=getFinUsers();
+  const list=document.getElementById('user-list-fin');
+  const roleLabel={financeiro:'Financeiro',gerente:'Gerente',consulta:'Consulta'};
+  if(!users.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado.</p>'; return; }
+  list.innerHTML='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Usuários cadastrados</div>'+
+    users.map((u,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);margin-bottom:6px">
+      <div style="flex:1"><div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
+      <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ${u.password}</div></div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
+      <button class="act" onclick="toggleFinUser(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
+      <button class="act act-del" onclick="removeFinUser(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`).join('');
+}
+
+function addUserFin(){
+  const name=document.getElementById('nu-name').value.trim();
+  const username=document.getElementById('nu-username').value.trim().toLowerCase();
+  const pass=document.getElementById('nu-pass').value.trim();
+  const role=document.getElementById('nu-role').value;
+  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
+  if(ADMINS_FIN.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
+  const users=getFinUsers();
+  if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
+  users.push({name,username,password:pass,role,active:true,tempPass:true});
+  saveFinUsers(users);
+  ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
+  renderUserListFin();
+}
+function toggleFinUser(idx){ const u=getFinUsers(); u[idx].active=u[idx].active===false; saveFinUsers(u); renderUserListFin(); }
+function removeFinUser(idx){ const u=getFinUsers(); if(!confirm(`Remover "${u[idx].name}"?`)) return; u.splice(idx,1); saveFinUsers(u); renderUserListFin(); }
 
 // ---- JSONBIN SYNC ----
 async function ensureBin(){
@@ -1025,16 +1175,18 @@ async function init(){
   syncInterval=setInterval(syncFromCloud,30000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
 if(sessionStorage.getItem('fin-logged')==='true'){
+  const role=sessionStorage.getItem('fin-role')||'';
   document.getElementById('login-screen').classList.remove('active');
+  showAdminBtn(role==='admin');
   init();
 } else {
   setTimeout(()=>document.getElementById('login-user').focus(),300);
