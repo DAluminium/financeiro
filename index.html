@@ -804,13 +804,35 @@ function renderUserListFin(){
   const roleLabel={financeiro:'Financeiro',gerente:'Gerente',consulta:'Consulta'};
   if(!users.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado.</p>'; return; }
   list.innerHTML='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Usuários cadastrados</div>'+
-    users.map((u,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);margin-bottom:6px">
-      <div style="flex:1"><div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
-      <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ${u.password}</div></div>
+    users.map((u,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
+        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ${u.password}</div>
+      </div>
       <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
+      <button class="act act-edit" onclick="editFinUser(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="act" onclick="toggleFinUser(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
       <button class="act act-del" onclick="removeFinUser(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>`).join('');
+}
+
+function editFinUser(idx){
+  const u=getFinUsers()[idx];
+  const novoNome=prompt('Nome completo:',u.name);
+  if(novoNome===null) return;
+  const novoRole=prompt('Função (financeiro / gerente / consulta):',u.role);
+  if(novoRole===null) return;
+  const roles=['financeiro','gerente','consulta'];
+  if(!roles.includes(novoRole.toLowerCase().trim())){ alert('Função inválida. Use: financeiro, gerente ou consulta.'); return; }
+  const novaSenha=prompt('Nova senha (deixe em branco para manter a atual):','');
+  const users=getFinUsers();
+  users[idx].name=novoNome.trim()||u.name;
+  users[idx].role=novoRole.toLowerCase().trim();
+  if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=novaSenha.trim(); users[idx].tempPass=false; }
+  saveFinUsers(users);
+  persist();
+  renderUserListFin();
+  alert('Usuário atualizado com sucesso! ✅');
 }
 
 function addUserFin(){
