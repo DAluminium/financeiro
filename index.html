@@ -186,6 +186,9 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
     <button id="admin-btn" class="btn btn-ghost btn-sm" onclick="openUserAdmin()" style="display:none">
       <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários
     </button>
+    <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
+      <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
+    </button>
     <button class="btn btn-ghost btn-sm" onclick="changeMyPass()">
       <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Senha
     </button>
@@ -516,6 +519,54 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   </div>
 </div>
 
+<!-- MODAL SALDOS INICIAIS -->
+<div class="modal-overlay" id="saldos-overlay">
+  <div class="modal" style="width:min(460px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">💰 Saldos Iniciais das Contas</div>
+      <button class="act" onclick="closeSaldosIniciais()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        ℹ️ Informe o saldo atual de cada conta <strong>antes de iniciar os lançamentos</strong>. O fluxo de caixa usará esses valores como ponto de partida.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>📱 PagBank</label>
+          <input id="si-pagbank" type="text" placeholder="Ex: 5.230,00">
+        </div>
+        <div class="form-group">
+          <label>🟠 Inter</label>
+          <input id="si-inter" type="text" placeholder="Ex: 12.800,00">
+        </div>
+        <div class="form-group">
+          <label>🟢 Sicredi</label>
+          <input id="si-sicredi" type="text" placeholder="Ex: 8.450,00">
+        </div>
+        <div class="form-group">
+          <label>💵 Caixa (espécie)</label>
+          <input id="si-caixa" type="text" placeholder="Ex: 1.200,00">
+        </div>
+        <div class="form-group span2" style="background:var(--gray-1);border-radius:var(--radius);padding:10px 14px">
+          <label>Data de referência dos saldos</label>
+          <input id="si-data" type="date" style="margin-top:6px">
+          <small style="font-size:11px;color:var(--gray-4);margin-top:4px;display:block">Data em que os saldos acima foram levantados</small>
+        </div>
+        <div class="form-group span2" style="background:var(--amber-light);border-radius:var(--radius);padding:10px 14px">
+          <label style="color:var(--amber)">Total em todas as contas</label>
+          <div style="font-size:20px;font-weight:700;color:var(--amber);margin-top:6px" id="si-total">R$ 0,00</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeSaldosIniciais()">Cancelar</button>
+      <button class="btn btn-teal" onclick="saveSaldosIniciais()">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Salvar saldos
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL USUÁRIOS -->
 <div class="modal-overlay" id="user-admin-overlay">
   <div class="modal" style="width:min(500px,100%)">
@@ -592,7 +643,50 @@ function getFinUsers(){ return data.usuarios||[]; }
 function saveFinUsers(u){ data.usuarios=u; }
 function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
-function showAdminBtn(s){ document.getElementById('admin-btn').style.display=s?'flex':'none'; }
+function showAdminBtn(s){
+  document.getElementById('admin-btn').style.display=s?'flex':'none';
+  document.getElementById('saldos-btn').style.display=s?'flex':'none';
+}
+
+// ---- SALDOS INICIAIS ----
+function openSaldosIniciais(){
+  const si=data.saldosIniciais||{};
+  document.getElementById('si-pagbank').value=si.pagbank?fmtBR(si.pagbank):'';
+  document.getElementById('si-inter').value=si.inter?fmtBR(si.inter):'';
+  document.getElementById('si-sicredi').value=si.sicredi?fmtBR(si.sicredi):'';
+  document.getElementById('si-caixa').value=si.caixa?fmtBR(si.caixa):'';
+  document.getElementById('si-data').value=si.dataRef||today();
+  calcSaldoTotal_si();
+  document.getElementById('saldos-overlay').classList.add('open');
+}
+function closeSaldosIniciais(){ document.getElementById('saldos-overlay').classList.remove('open'); }
+
+function calcSaldoTotal_si(){
+  const total=['si-pagbank','si-inter','si-sicredi','si-caixa'].reduce((a,id)=>a+parseBR(document.getElementById(id).value||'0'),0);
+  document.getElementById('si-total').textContent='R$ '+fmtBR(total);
+}
+// Bind input events
+setTimeout(()=>{
+  ['si-pagbank','si-inter','si-sicredi','si-caixa'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',calcSaldoTotal_si);
+  });
+},500);
+
+async function saveSaldosIniciais(){
+  data.saldosIniciais={
+    pagbank:parseBR(document.getElementById('si-pagbank').value||'0'),
+    inter:parseBR(document.getElementById('si-inter').value||'0'),
+    sicredi:parseBR(document.getElementById('si-sicredi').value||'0'),
+    caixa:parseBR(document.getElementById('si-caixa').value||'0'),
+    dataRef:document.getElementById('si-data').value||today(),
+  };
+  await persist();
+  render();
+  if(document.getElementById('panel-caixa').style.display!=='none') renderCaixa();
+  closeSaldosIniciais();
+  alert('Saldos iniciais salvos com sucesso! ✅');
+}
 
 async function doLogin(){
   const user=document.getElementById('login-user').value.trim().toLowerCase();
@@ -1237,10 +1331,14 @@ function renderCaixa(){
   const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)'};
   const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C'};
   const saldosDiv=document.getElementById('contas-saldos');
+  const si=data.saldosIniciais||{};
+  const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
   saldosDiv.innerHTML=contas.map(c=>{
     const s=calcSaldoConta(c);
+    const sInicial=si[c]||0;
     return`<div class="conta-card">
       <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
+      ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
       <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
     </div>`;
   }).join('');
@@ -1380,11 +1478,11 @@ async function init(){
   syncInterval=setInterval(syncFromCloud,30000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
