@@ -645,7 +645,10 @@ function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-pas
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
 function showAdminBtn(s){
   document.getElementById('admin-btn').style.display=s?'flex':'none';
-  document.getElementById('saldos-btn').style.display=s||sessionStorage.getItem('fin-role')==='gerente'?'flex':'none';
+}
+function updateSaldosBtn(){
+  const role=sessionStorage.getItem('fin-role')||'';
+  document.getElementById('saldos-btn').style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -708,6 +711,7 @@ async function doLogin(){
       sessionStorage.setItem('fin-admin-key',admin.user);
       document.getElementById('login-screen').classList.remove('active');
       showAdminBtn(true);
+      updateSaldosBtn();
       if(isTemp) setTimeout(()=>openChangePassAdmin(admin),500);
       document.querySelector('.login-btn').textContent='Entrar';
       init();
@@ -725,7 +729,7 @@ async function doLogin(){
     sessionStorage.setItem('fin-role',found.role||'user');
     document.getElementById('login-screen').classList.remove('active');
     showAdminBtn(false);
-    if(found.role==='gerente') document.getElementById('saldos-btn').style.display='flex';
+    updateSaldosBtn();
     if(found.tempPass) setTimeout(()=>openChangePassUser(found),500);
     document.querySelector('.login-btn').textContent='Entrar';
     init();
@@ -1491,7 +1495,7 @@ if(sessionStorage.getItem('fin-logged')==='true'){
   const role=sessionStorage.getItem('fin-role')||'';
   document.getElementById('login-screen').classList.remove('active');
   showAdminBtn(role==='admin');
-  if(role==='gerente') document.getElementById('saldos-btn').style.display='flex';
+  updateSaldosBtn();
   init();
 } else {
   setTimeout(()=>document.getElementById('login-user').focus(),300);
