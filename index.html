@@ -152,6 +152,16 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 
 @media(max-width:700px){.summary{grid-template-columns:1fr 1fr}.contas-grid{grid-template-columns:1fr 1fr}.topbar-logo span{display:none}}
 @media(max-width:480px){.summary{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-group.span2{grid-column:1}}
+
+/* ANEXOS */
+.act-attach.has-files{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.attach-list{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.attach-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);font-size:12px}
+.attach-item a{color:var(--teal-dark);font-weight:500;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attach-item a:hover{text-decoration:underline}
+.attach-upload-area{border:2px dashed var(--gray-3);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;color:var(--gray-4);font-size:13px;margin-bottom:12px;transition:all .15s}
+.attach-upload-area:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.attach-progress{font-size:12px;color:var(--teal-dark);text-align:center;padding:8px;display:none}
 </style>
 </head>
 <body>
@@ -534,6 +544,27 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   </div>
 </div>
 
+<!-- MODAL ANEXOS -->
+<div class="modal-overlay" id="attach-overlay">
+  <div class="modal" style="width:min(500px,100%)">
+    <div class="modal-header">
+      <div class="modal-title" id="attach-title">Anexos</div>
+      <button class="act" onclick="closeAttach()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="attach-upload-area" onclick="document.getElementById('attach-file-input').click()">
+        <svg style="width:24px;height:24px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        Clique para anexar recibo, boleto, contrato, NF ou imagem
+      </div>
+      <div class="attach-progress" id="attach-progress">⏳ Enviando arquivo...</div>
+      <input type="file" id="attach-file-input" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="uploadAttach(event)">
+      <div class="attach-list" id="attach-list"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeAttach()">Fechar</button></div>
+  </div>
+</div>
+
+<input type="file" id="file-input" style="display:none">
 <script>
 // ---- DATA ----
 const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
@@ -747,6 +778,62 @@ function calcStatus(item, tipo){
   }
 }
 
+const CLOUDINARY_CLOUD='ks3znltm', CLOUDINARY_PRESET='daluminium';
+let attachType=null, attachIdx=null;
+
+function openAttach(type,idx){
+  attachType=type; attachIdx=idx;
+  const r=type==='pagar'?data.pagar[idx]:data.receber[idx];
+  const label=type==='pagar'?r.desc:r.cliente;
+  document.getElementById('attach-title').textContent='Anexos — '+label;
+  document.getElementById('attach-overlay').classList.add('open');
+  renderAttachList();
+}
+function closeAttach(){ document.getElementById('attach-overlay').classList.remove('open'); attachType=null; attachIdx=null; }
+
+function renderAttachList(){
+  const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
+  const list=document.getElementById('attach-list');
+  const atts=r.attachments||[];
+  if(!atts.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum anexo ainda.</p>'; return; }
+  list.innerHTML=atts.map((a,i)=>{
+    const isImg=/\.(jpg|jpeg|png|webp)/i.test(a.name);
+    const isPdf=/\.pdf$/i.test(a.name);
+    return`<div class="attach-item">
+      ${isImg?`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`:`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`}
+      <a href="${a.url}" target="_blank" title="${a.name}">${a.name}</a>
+      <button class="act act-del" onclick="removeAttach(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`;
+  }).join('');
+}
+
+async function uploadAttach(event){
+  const file=event.target.files[0]; if(!file) return;
+  const prog=document.getElementById('attach-progress');
+  prog.style.display='block'; prog.textContent='⏳ Enviando '+file.name+'...';
+  try{
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('upload_preset',CLOUDINARY_PRESET);
+    fd.append('folder','daluminium-financeiro');
+    const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:'POST',body:fd});
+    const j=await r.json();
+    const r2=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
+    if(!r2.attachments) r2.attachments=[];
+    r2.attachments.push({name:file.name,url:j.secure_url,public_id:j.public_id});
+    await persist(); render(); renderAttachList();
+    prog.style.display='none';
+  }catch(e){ prog.textContent='❌ Erro ao enviar. Tente novamente.'; }
+  event.target.value='';
+}
+
+async function removeAttach(idx){
+  if(!confirm('Remover este anexo?')) return;
+  const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
+  r.attachments.splice(idx,1);
+  await persist(); render(); renderAttachList();
+}
+
 // ---- TABS ----
 function setTab(tab,el){
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
@@ -846,6 +933,9 @@ function renderPagar(){
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
         ${r._status!=='pago'?`<button class="act act-pay" onclick="openBaixa('pagar',${r._i})" title="Baixar pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+        <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('pagar',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
+        </button>
         <button class="act act-edit" onclick="openModalPagar(${r._i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button class="act act-del" onclick="deletePagar(${r._i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
       </td>
@@ -958,6 +1048,9 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+          <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
+          </button>
           <button class="act act-edit" onclick="openModalReceber(${r._i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act act-del" onclick="deleteReceber(${r._i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
         </td>
@@ -1175,11 +1268,11 @@ async function init(){
   syncInterval=setInterval(syncFromCloud,30000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
