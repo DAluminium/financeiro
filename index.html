@@ -576,7 +576,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 // ---- DATA ----
 const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
 const JSONBIN_KEY = '$2a$10$qNzq0CuT5x/WTpaVrTxaw.sY19M0txIKTyqSStOtIiUs7QfVIFIoy';
-let JSONBIN_BIN_ID = localStorage.getItem('fin-bin-id')||'';
+const AUTO_BIN_ID = '6a6d12c8da38895dfeaa51dd';
+let JSONBIN_BIN_ID = AUTO_BIN_ID;
 
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
 let syncInterval = null;
@@ -641,13 +642,8 @@ async function doLogin(){
 }
 
 async function loadUsersFromCloud(){
-  if(!JSONBIN_BIN_ID){
-    // Try to get bin ID from localStorage
-    JSONBIN_BIN_ID=localStorage.getItem('fin-bin-id')||'';
-  }
-  if(!JSONBIN_BIN_ID) return;
   try{
-    const r=await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}/latest`,{
+    const r=await fetch(`${JSONBIN_API}/${AUTO_BIN_ID}/latest`,{
       headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}
     });
     if(!r.ok) return;
@@ -751,15 +747,8 @@ function removeFinUser(idx){
 
 // ---- JSONBIN SYNC ----
 async function ensureBin(){
-  if(JSONBIN_BIN_ID) return;
-  const r=await fetch(JSONBIN_API,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Name':'Daluminium Financeiro','X-Bin-Private':'true'},
-    body:JSON.stringify(data)
-  });
-  const j=await r.json();
-  JSONBIN_BIN_ID=j.metadata.id;
-  localStorage.setItem('fin-bin-id',JSONBIN_BIN_ID);
+  // Bin ID is fixed — no need to create
+  JSONBIN_BIN_ID = AUTO_BIN_ID;
 }
 
 async function syncFromCloud(){
