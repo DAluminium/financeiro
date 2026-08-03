@@ -819,7 +819,7 @@ function changeMyPass(){
     const name=sessionStorage.getItem('fin-user')||'';
     const users=getFinUsers();
     const idx=users.findIndex(u=>u.name===name);
-    if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveFinUsers(users); persist(); }); }
+    if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveFinUsers(users); persistUsers(); }); }
   }
   alert('Senha alterada com sucesso! ✅');
 }
@@ -878,7 +878,7 @@ async function editFinUser(idx){
   users[idx].role=novoRole.toLowerCase().trim();
   if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=await hashSenha(novaSenha.trim()); users[idx].tempPass=false; }
   saveFinUsers(users);
-  persist();
+  persistUsers();
   renderUserListFin();
   alert('Usuário atualizado com sucesso! ✅');
 }
@@ -895,7 +895,7 @@ async function addUserFin(){
   const passHash=await hashSenha(pass);
   users.push({name,username,password:passHash,role,active:true,tempPass:true});
   saveFinUsers(users);
-  persist();
+  persistUsers();
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   renderUserListFin();
 }
@@ -903,7 +903,7 @@ function toggleFinUser(idx){
   const u=getFinUsers();
   u[idx].active=u[idx].active===false?true:false;
   saveFinUsers(u);
-  persist();
+  persistUsers();
   renderUserListFin();
 }
 function removeFinUser(idx){
@@ -933,6 +933,17 @@ async function syncFromCloud(){
     render();
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){ setStatus('🔴 Sem conexão'); }
+}
+
+async function persistUsers(){
+  localStorage.setItem('fin-data',JSON.stringify(data));
+  try{
+    await fetch(JSONBIN_API+'/'+AUTO_BIN_ID,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
+      body:JSON.stringify(data)
+    });
+  }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
 
 async function persist(){
