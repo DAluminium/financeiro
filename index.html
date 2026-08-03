@@ -625,10 +625,10 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <input type="file" id="file-input" style="display:none">
 <script>
 // ---- DATA ----
-const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
-const JSONBIN_KEY = '$2a$10$qNzq0CuT5x/WTpaVrTxaw.sY19M0txIKTyqSStOtIiUs7QfVIFIoy';
-const AUTO_BIN_ID = '6a6d12c8da38895dfeaa51dd';
-let JSONBIN_BIN_ID = AUTO_BIN_ID;
+const SUPA_URL='https://jirtkaarlnkwasorbita.supabase.co';
+const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
+const SUPA_SISTEMA='financeiro';
+let JSONBIN_BIN_ID = SUPA_SISTEMA;
 
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
 let dataReady=false;
@@ -790,8 +790,15 @@ async function doLogin(){
 
 async function loadUsersFromCloud(){
   try{
-    const r=await fetch(`${JSONBIN_API}/${AUTO_BIN_ID}/latest`,{
-      headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}
+    const r=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA+'&select=data',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(!r.ok) return;
+    const rows=await r.json();
+    const remote=rows[0]?.data;
+    if(remote&&remote.usuarios) data.usuarios=remote.usuarios;
+  }catch(e){ console.warn('Erro ao carregar usuários:', e); }
+}
     });
     if(!r.ok) return;
     const remote=await r.json();
@@ -917,17 +924,17 @@ function removeFinUser(idx){
 }
 
 // ---- JSONBIN SYNC ----
-async function ensureBin(){
-  // Bin ID is fixed — no need to create
-  JSONBIN_BIN_ID = AUTO_BIN_ID;
-}
+async function ensureBin(){ /* Supabase — sem necessidade */ }
 
 async function syncFromCloud(){
-  if(!JSONBIN_BIN_ID) return;
   try{
-    const r=await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}/latest`,{headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}});
+    const r=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA+'&select=data',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
     if(!r.ok) return;
-    const remote=await r.json();
+    const rows=await r.json();
+    const remote=rows[0]?.data;
+    if(!remote) return;
     data=remote;
     dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
@@ -939,10 +946,10 @@ async function syncFromCloud(){
 async function persistUsers(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   try{
-    await fetch(JSONBIN_API+'/'+AUTO_BIN_ID,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
-      body:JSON.stringify(data)
+    await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
     });
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
@@ -955,10 +962,10 @@ async function persist(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
-    await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}`,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
-      body:JSON.stringify(data)
+    await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+      method:'PATCH',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
     });
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){ setStatus('🔴 Erro ao salvar'); }
