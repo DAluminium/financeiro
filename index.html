@@ -895,9 +895,10 @@ async function addUserFin(){
   const passHash=await hashSenha(pass);
   users.push({name,username,password:passHash,role,active:true,tempPass:true});
   saveFinUsers(users);
-  persistUsers();
+  await persistUsers();
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   renderUserListFin();
+  alert('Usuário cadastrado e salvo na nuvem! ✅');
 }
 function toggleFinUser(idx){
   const u=getFinUsers();
