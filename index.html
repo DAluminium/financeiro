@@ -789,8 +789,8 @@ async function doLogin(){
 
 async function loadUsersFromCloud(){
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'financeiro'}
+    const r=await fetch(`${JSONBIN_API}/${AUTO_BIN_ID}/latest`,{
+      headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}
     });
     if(!r.ok) return;
     const remote=await r.json();
@@ -923,7 +923,7 @@ async function ensureBin(){
 async function syncFromCloud(){
   if(!JSONBIN_BIN_ID) return;
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{headers:{'X-Sistema':'financeiro'}});
+    const r=await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}/latest`,{headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}});
     if(!r.ok) return;
     const remote=await r.json();
     data=remote;
@@ -937,9 +937,9 @@ async function persist(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
-    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}`,{
       method:'PUT',
-      headers:{'Content-Type':'application/json','X-Sistema':'financeiro'},
+      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
       body:JSON.stringify(data)
     });
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
