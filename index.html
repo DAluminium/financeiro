@@ -634,6 +634,40 @@ let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inte
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
+// ---- SEGURANÇA ----
+async function hashSenha(senha){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(senha));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+const MAX_TENTATIVAS=5, BLOQUEIO_MS=5*60*1000;
+function getTentativas(){ try{ return JSON.parse(localStorage.getItem('fin-login-tries')||'{"count":0,"ts":0}'); }catch{ return {count:0,ts:0}; } }
+function setTentativas(obj){ localStorage.setItem('fin-login-tries',JSON.stringify(obj)); }
+function resetTentativas(){ localStorage.removeItem('fin-login-tries'); }
+function verificarBloqueio(){
+  const t=getTentativas();
+  if(t.count>=MAX_TENTATIVAS){
+    const restante=Math.ceil((BLOQUEIO_MS-(Date.now()-t.ts))/1000/60);
+    if(restante>0) return `Acesso bloqueado. Tente novamente em ${restante} minuto${restante>1?'s':''}.`;
+    resetTentativas();
+  }
+  return null;
+}
+function registrarFalha(){
+  const t=getTentativas();
+  const agora=Date.now();
+  if(agora-t.ts>BLOQUEIO_MS){ t.count=1; t.ts=agora; }
+  else t.count++;
+  t.ts=agora;
+  setTentativas(t);
+  return MAX_TENTATIVAS-t.count;
+}
+async function verificarSenha(digitada, armazenada){
+  if(!armazenada) return false;
+  if(/^[a-f0-9]{64}$/.test(armazenada)) return (await hashSenha(digitada))===armazenada;
+  return digitada===armazenada;
+}
+
 // ---- LOGIN & USER MANAGEMENT ----
 const ADMINS_FIN=[
   {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', tempPass:false},
@@ -696,15 +730,18 @@ async function doLogin(){
   const pass=document.getElementById('login-pass').value;
   const err=document.getElementById('login-error');
   err.style.display='none';
+
+  const bloqueio=verificarBloqueio();
+  if(bloqueio){ err.textContent=bloqueio; err.style.display='block'; return; }
+
   document.querySelector('.login-btn').textContent='Verificando...';
 
-  // Check admins first (no cloud needed)
   const admin=ADMINS_FIN.find(a=>a.user===user);
   if(admin){
     const saved=getAdminPass(admin.user);
     const correct=saved||admin.pass;
     const isTemp=!saved&&admin.tempPass;
-    if(correct===pass){
+    if(await verificarSenha(pass,correct)){
       sessionStorage.setItem('fin-logged','true');
       sessionStorage.setItem('fin-user',admin.name);
       sessionStorage.setItem('fin-role','admin');
@@ -722,8 +759,14 @@ async function doLogin(){
   // For regular users — load from cloud first so usuarios is populated
   await loadUsersFromCloud();
   const users=getFinUsers();
-  const found=users.find(u=>u.username.toLowerCase()===user&&u.password===pass&&u.active!==false);
+  let found=null;
+  for(const u of users){
+    if(u.username.toLowerCase()===user&&u.active!==false){
+      if(await verificarSenha(pass,u.password)){ found=u; break; }
+    }
+  }
   if(found){
+    resetTentativas();
     sessionStorage.setItem('fin-logged','true');
     sessionStorage.setItem('fin-user',found.name);
     sessionStorage.setItem('fin-role',found.role||'user');
@@ -734,6 +777,10 @@ async function doLogin(){
     document.querySelector('.login-btn').textContent='Entrar';
     init();
   } else {
+    const restante=registrarFalha();
+    err.textContent=restante>0
+      ? `Usuário ou senha incorretos. ${restante} tentativa${restante>1?'s':''} restante${restante>1?'s':''}.`
+      : 'Acesso bloqueado por 5 minutos.';
     err.style.display='block';
     document.getElementById('login-pass').value='';
     document.querySelector('.login-btn').textContent='Entrar';
@@ -771,7 +818,7 @@ function changeMyPass(){
     const name=sessionStorage.getItem('fin-user')||'';
     const users=getFinUsers();
     const idx=users.findIndex(u=>u.name===name);
-    if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); persist(); }
+    if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveFinUsers(users); persist(); }); }
   }
   alert('Senha alterada com sucesso! ✅');
 }
@@ -807,7 +854,7 @@ function renderUserListFin(){
     users.map((u,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);margin-bottom:6px">
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
-        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ${u.password}</div>
+        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ••••••••</div>
       </div>
       <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
       <button class="act act-edit" onclick="editFinUser(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -816,7 +863,7 @@ function renderUserListFin(){
     </div>`).join('');
 }
 
-function editFinUser(idx){
+async function editFinUser(idx){
   const u=getFinUsers()[idx];
   const novoNome=prompt('Nome completo:',u.name);
   if(novoNome===null) return;
@@ -828,14 +875,14 @@ function editFinUser(idx){
   const users=getFinUsers();
   users[idx].name=novoNome.trim()||u.name;
   users[idx].role=novoRole.toLowerCase().trim();
-  if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=novaSenha.trim(); users[idx].tempPass=false; }
+  if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=await hashSenha(novaSenha.trim()); users[idx].tempPass=false; }
   saveFinUsers(users);
   persist();
   renderUserListFin();
   alert('Usuário atualizado com sucesso! ✅');
 }
 
-function addUserFin(){
+async function addUserFin(){
   const name=document.getElementById('nu-name').value.trim();
   const username=document.getElementById('nu-username').value.trim().toLowerCase();
   const pass=document.getElementById('nu-pass').value.trim();
@@ -844,7 +891,8 @@ function addUserFin(){
   if(ADMINS_FIN.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   const users=getFinUsers();
   if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
-  users.push({name,username,password:pass,role,active:true,tempPass:true});
+  const passHash=await hashSenha(pass);
+  users.push({name,username,password:passHash,role,active:true,tempPass:true});
   saveFinUsers(users);
   persist();
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
