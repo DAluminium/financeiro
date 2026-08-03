@@ -799,12 +799,6 @@ async function loadUsersFromCloud(){
     if(remote&&remote.usuarios) data.usuarios=remote.usuarios;
   }catch(e){ console.warn('Erro ao carregar usuários:', e); }
 }
-    });
-    if(!r.ok) return;
-    const remote=await r.json();
-    if(remote.usuarios) data.usuarios=remote.usuarios;
-  }catch(e){ console.warn('Erro ao carregar usuários:', e); }
-}
 
 function doLogout(){
   if(!confirm('Deseja sair?')) return;
