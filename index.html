@@ -631,7 +631,6 @@ const AUTO_BIN_ID = '6a6d12c8da38895dfeaa51dd';
 let JSONBIN_BIN_ID = AUTO_BIN_ID;
 
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
-let dataReady = false; // Proteção: só salva depois de carregar da nuvem
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
@@ -790,8 +789,8 @@ async function doLogin(){
 
 async function loadUsersFromCloud(){
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'financeiro'}
+    const r=await fetch(`${JSONBIN_API}/${AUTO_BIN_ID}/latest`,{
+      headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}
     });
     if(!r.ok) return;
     const remote=await r.json();
@@ -924,11 +923,10 @@ async function ensureBin(){
 async function syncFromCloud(){
   if(!JSONBIN_BIN_ID) return;
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{headers:{'X-Sistema':'financeiro'}});
+    const r=await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}/latest`,{headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}});
     if(!r.ok) return;
     const remote=await r.json();
     data=remote;
-    dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
     render();
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
@@ -936,13 +934,12 @@ async function syncFromCloud(){
 }
 
 async function persist(){
-  if(!dataReady){ console.warn('persist bloqueado — dados ainda não carregados da nuvem'); return; }
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
-    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    await fetch(`${JSONBIN_API}/${JSONBIN_BIN_ID}`,{
       method:'PUT',
-      headers:{'Content-Type':'application/json','X-Sistema':'financeiro'},
+      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
       body:JSON.stringify(data)
     });
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
@@ -1547,7 +1544,7 @@ function exportRelatorio(){
 async function init(){
   try{
     const saved=localStorage.getItem('fin-data');
-    if(saved){ data=JSON.parse(saved); dataReady=true; }
+    if(saved) data=JSON.parse(saved);
   }catch{}
   await ensureBin();
   await syncFromCloud();
