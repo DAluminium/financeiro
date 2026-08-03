@@ -631,6 +631,7 @@ const AUTO_BIN_ID = '6a6d12c8da38895dfeaa51dd';
 let JSONBIN_BIN_ID = AUTO_BIN_ID;
 
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
+let dataReady=false;
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
@@ -927,6 +928,7 @@ async function syncFromCloud(){
     if(!r.ok) return;
     const remote=await r.json();
     data=remote;
+    dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
     render();
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
@@ -934,6 +936,10 @@ async function syncFromCloud(){
 }
 
 async function persist(){
+  if(!dataReady) return; // Nunca salva antes de carregar da nuvem
+  const totalItems=(data.pagar||[]).length+(data.receber||[]).length+(data.usuarios||[]).length;
+  const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
+  if(totalItems===0&&!hasSaldo) return;
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
@@ -1544,7 +1550,7 @@ function exportRelatorio(){
 async function init(){
   try{
     const saved=localStorage.getItem('fin-data');
-    if(saved) data=JSON.parse(saved);
+    if(saved){ const parsed=JSON.parse(saved); const hasData=(parsed.pagar||[]).length+(parsed.receber||[]).length>0; if(hasData) data=parsed; }
   }catch{}
   await ensureBin();
   await syncFromCloud();
