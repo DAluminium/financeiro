@@ -322,6 +322,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
           <option value="inter">Inter</option>
           <option value="sicredi">Sicredi</option>
           <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
         </select>
         <select id="fil-caixa-mes" onchange="renderCaixa()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)"></select>
         <button class="btn btn-green btn-sm" onclick="openModalTransferencia()">
@@ -389,6 +391,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
           </select>
         </div>
         <div class="form-group span2"><label>Nº Documento / NF</label><input id="p-doc" type="text" placeholder="Ex: NF-001234"></div>
@@ -436,6 +440,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
           </select>
         </div>
         <div class="form-group"><label>Data de recebimento</label><input id="r-dtrec" type="date"><small style="color:var(--gray-4);font-size:10px">Preencha quando receber</small></div>
@@ -468,6 +474,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
           </select>
         </div>
         <div class="form-group"><label>Conta destino <span style="color:var(--red)">*</span></label>
@@ -476,6 +484,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
             <option value="pagbank">PagBank</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
           </select>
         </div>
         <div class="form-group"><label>Valor <span style="color:var(--red)">*</span></label><input id="t-valor" type="text" placeholder="Ex: 5.000,00"></div>
@@ -506,6 +516,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
+          <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
           </select>
         </div>
         <div class="form-group span2"><label>Valor pago</label><input id="b-valor" type="text" placeholder="Deixe em branco para usar o valor original"></div>
@@ -546,6 +558,9 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
         <div class="form-group">
           <label>💵 Caixa (espécie)</label>
           <input id="si-caixa" type="text" placeholder="Ex: 1.200,00">
+                <div class="form-group">
+          <label>📄 Antecipação de Boleto</label>
+          <input id="si-antecipacao" type="text" placeholder="Ex: 3.200,00">
         </div>
         <div class="form-group span2" style="background:var(--gray-1);border-radius:var(--radius);padding:10px 14px">
           <label>Data de referência dos saldos</label>
@@ -630,7 +645,7 @@ const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
 const SUPA_SISTEMA='financeiro';
 let JSONBIN_BIN_ID = SUPA_SISTEMA;
 
-let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0}, usuarios:[] };
+let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[] };
 let dataReady=false;
 let syncInterval = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
@@ -709,6 +724,7 @@ function openSaldosIniciais(){
   document.getElementById('si-inter').value=si.inter?fmtBR(si.inter):'';
   document.getElementById('si-sicredi').value=si.sicredi?fmtBR(si.sicredi):'';
   document.getElementById('si-caixa').value=si.caixa?fmtBR(si.caixa):'';
+  if(document.getElementById('si-antecipacao')) document.getElementById('si-antecipacao').value=si.antecipacao?fmtBR(si.antecipacao):'';
   document.getElementById('si-data').value=si.dataRef||today();
   calcSaldoTotal_si();
   document.getElementById('saldos-overlay').classList.add('open');
@@ -733,6 +749,7 @@ async function saveSaldosIniciais(){
     inter:parseBR(document.getElementById('si-inter').value||'0'),
     sicredi:parseBR(document.getElementById('si-sicredi').value||'0'),
     caixa:parseBR(document.getElementById('si-caixa').value||'0'),
+    antecipacao:parseBR(document.getElementById('si-antecipacao')?document.getElementById('si-antecipacao').value||'0':'0'),
     dataRef:document.getElementById('si-data').value||today(),
   };
   await persist();
@@ -993,7 +1010,7 @@ function today(){ return new Date().toISOString().slice(0,10); }
 function mesLabel(d){ const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); }
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
-const CONTA_LABEL={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa'};
+const CONTA_LABEL={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa',antecipacao:'Antecip. Boleto'};
 const CAT_LABEL={energia:'Energia',agua:'Água',salarios:'Salários',fornecedores:'Fornecedores',aluguel:'Aluguel Máq./Equip.',software:'Software',prestadores:'Prestadores',telefone:'Telefone',internet:'Internet','despesas-pessoal':'Desp. Pessoal','despesas-cliente':'Desp. Cliente',outros:'Outros'};
 
 function pillStatus(s){
@@ -1439,9 +1456,9 @@ async function deleteReceber(idx){ if(!confirm('Remover este recebimento?')) ret
 
 // ---- FLUXO DE CAIXA ----
 function renderCaixa(){
-  const contas=['pagbank','inter','sicredi','caixa'];
-  const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)'};
-  const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C'};
+  const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
+  const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto'};
+  const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C',antecipacao:'#880E4F'};
   const saldosDiv=document.getElementById('contas-saldos');
   const si=data.saldosIniciais||{};
   const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
