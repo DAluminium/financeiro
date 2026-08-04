@@ -817,11 +817,14 @@ async function loadUsersFromCloud(){
 }
 
 function doLogout(){
-  if(!confirm('Deseja sair?')) return;
+  if(!confirm('Deseja sair do sistema?')) return;
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
-  document.getElementById('login-screen').classList.add('active');
-  document.getElementById('login-user').value='';
-  document.getElementById('login-pass').value='';
+  localStorage.removeItem('dalum-sso');
+  if(window.self!==window.top){
+    window.parent.postMessage('logout','*');
+  } else {
+    window.location.href='https://daluminium.github.io/portal/';
+  }
 }
 
 function changeMyPass(){
@@ -1591,7 +1594,8 @@ function checkSSO(){
     updateSaldosBtn();
     // Adicionar botão voltar ao portal
     const ssoCheck=JSON.parse(localStorage.getItem('dalum-sso')||'null');
-    if(ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
+    const inIframe=window.self!==window.top;
+    if(inIframe&&ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
     return true;
   }catch(e){ return false; }
 }
