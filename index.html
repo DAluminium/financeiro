@@ -785,11 +785,13 @@ function saveFinUsers(u){ data.usuarios=u; }
 function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
 function showAdminBtn(s){
-  document.getElementById('admin-btn').style.display=s?'flex':'none';
+  const btn=document.getElementById('admin-btn');
+  if(btn) btn.style.display=s?'flex':'none';
 }
 function updateSaldosBtn(){
   const role=sessionStorage.getItem('fin-role')||'';
-  document.getElementById('saldos-btn').style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const btn=document.getElementById('saldos-btn');
+  if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
