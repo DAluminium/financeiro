@@ -1558,6 +1558,38 @@ function exportRelatorio(){
   URL.revokeObjectURL(url);
 }
 
+
+// ---- SSO AUTO-LOGIN ----
+function checkSSO(){
+  try{
+    const sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    if(!sso||!sso.nome) return false;
+    // Token válido por 8 horas
+    if(Date.now()-sso.ts>8*60*60*1000){ localStorage.removeItem('dalum-sso'); return false; }
+    sessionStorage.setItem('fin-logged','true');
+    sessionStorage.setItem('fin-user',sso.nome);
+    sessionStorage.setItem('fin-role',sso.role||'user');
+    lastBy=sso.nome;
+    document.getElementById('login-screen').classList.remove('active');
+    showAdminBtn(sso.role==='admin');
+    updateSaldosBtn();
+    // Adicionar botão voltar ao portal
+    addPortalBackBtn();
+    return true;
+  }catch(e){ return false; }
+}
+
+function addPortalBackBtn(){
+  if(document.getElementById('portal-back-btn')) return;
+  const btn=document.createElement('button');
+  btn.id='portal-back-btn';
+  btn.className='btn btn-ghost btn-sm';
+  btn.innerHTML='<svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> Portal';
+  btn.onclick=()=>window.parent.postMessage('voltarPortal','*');
+  btn.style.cssText='position:fixed;top:8px;left:8px;z-index:999;background:rgba(255,255,255,.2);color:white;border:1px solid rgba(255,255,255,.3);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;font-family:inherit';
+  document.body.appendChild(btn);
+}
+
 // ---- INIT ----
 async function init(){
   try{
@@ -1579,7 +1611,9 @@ document.addEventListener('keydown',e=>{
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
-if(sessionStorage.getItem('fin-logged')==='true'){
+if(checkSSO()){
+  init();
+} else if(sessionStorage.getItem('fin-logged')==='true'){
   const role=sessionStorage.getItem('fin-role')||'';
   document.getElementById('login-screen').classList.remove('active');
   showAdminBtn(role==='admin');
