@@ -790,8 +790,8 @@ async function doLogin(){
 
 async function loadUsersFromCloud(){
   try{
-    const r=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA+'&select=data',{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
     });
     if(!r.ok) return;
     const rows=await r.json();
@@ -922,12 +922,11 @@ async function ensureBin(){ /* Supabase — sem necessidade */ }
 
 async function syncFromCloud(){
   try{
-    const r=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA+'&select=data',{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
     });
     if(!r.ok) return;
-    const rows=await r.json();
-    const remote=rows[0]?.data;
+    const remote=await r.json();
     if(!remote) return;
     data=remote;
     dataReady=true;
@@ -940,10 +939,10 @@ async function syncFromCloud(){
 async function persistUsers(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   try{
-    await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
+      headers:{'Content-Type':'application/json','X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:data})
     });
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
