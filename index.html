@@ -1718,7 +1718,7 @@ async function init(){
   await syncFromCloud();
   populateMesFiltros();
   render();
-  syncInterval=setInterval(syncFromCloud,30000); startUpdateCheck();
+  syncInterval=setInterval(syncFromCloud,30000);
 }
 
 ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>{
