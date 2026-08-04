@@ -641,6 +641,12 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <input type="file" id="file-input" style="display:none">
 <script>
 
+// Restaurar sessão após atualização
+(function(){
+  const saved=localStorage.getItem('fin-reload-sess');
+  if(saved){ const s=JSON.parse(saved); Object.entries(s).forEach(([k,v])=>sessionStorage.setItem(k,v)); localStorage.removeItem('fin-reload-sess'); }
+})();
+
 // ---- AUTO UPDATE ----
 const REPO_OWNER='DAluminium';
 let _updateCheckInterval=null;
@@ -713,6 +719,9 @@ function recarregar(){
   const pct=document.getElementById('update-progress-pct');
   fill.style.width='100%';
   pct.textContent='✅ Concluído! Recarregando...';
+  const sess={};
+  ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>{ const v=sessionStorage.getItem(k); if(v) sess[k]=v; });
+  localStorage.setItem('fin-reload-sess',JSON.stringify(sess));
   setTimeout(()=>location.reload(),600);
 }
 
