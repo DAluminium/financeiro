@@ -1590,7 +1590,8 @@ function checkSSO(){
     showAdminBtn(sso.role==='admin');
     updateSaldosBtn();
     // Adicionar botão voltar ao portal
-    addPortalBackBtn();
+    const ssoCheck=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    if(ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
     return true;
   }catch(e){ return false; }
 }
