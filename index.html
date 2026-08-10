@@ -157,6 +157,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 /* NOTIF */
 .notif-banner{padding:8px 14px;display:flex;align-items:flex-start;gap:10px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.06)}
 .notif-close{margin-left:auto;cursor:pointer;opacity:.6;font-size:15px;flex-shrink:0}
+.notif-item{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,0.06)}
+.notif-item:last-child{border-bottom:none}
+.notif-resumo{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;cursor:pointer;user-select:none}
+.notif-resumo:hover{filter:brightness(0.97)}
+.notif-resumo-acao{font-size:11.5px;font-weight:600;opacity:.85;white-space:nowrap;flex-shrink:0}
+.notif-detalhes{max-height:65vh;overflow-y:auto}
 
 svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
@@ -416,6 +422,28 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
 </div>
 
 
+<!-- ALTERACAO SIMULTANEA -->
+<div class="modal-overlay" id="conc-overlay">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">⚠️ Duas pessoas alteraram ao mesmo tempo</div>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gray-5);line-height:1.55;margin-bottom:14px">
+        Enquanto você trabalhava, outra pessoa gravou alterações. Veja o que cada
+        um fez e escolha como salvar.
+      </p>
+      <div id="conc-deles"></div>
+      <div id="conc-meu"></div>
+    </div>
+    <div class="modal-footer" style="flex-direction:column;gap:8px;align-items:stretch">
+      <button class="btn btn-teal" id="conc-btn-juntar" style="width:100%">Salvar os dois</button>
+      <button class="btn btn-outline" id="conc-btn-meu" style="width:100%">Gravar só o meu (apaga o da outra pessoa)</button>
+      <button class="btn btn-outline" id="conc-btn-descartar" style="width:100%">Descartar o meu e carregar o dela</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CATEGORIAS -->
 <div class="modal-overlay" id="cat-overlay">
   <div class="modal" style="max-width:560px">
@@ -433,6 +461,9 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
       <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
         Contas já usadas em lançamentos não podem ser excluídas — desative-as. Elas somem do formulário mas continuam aparecendo no histórico.
       </div>
+      <input id="cat-busca" type="text" placeholder="Procurar conta cadastrada..."
+        style="width:100%;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;margin-bottom:8px"
+        oninput="renderCategorias()">
       <div id="cat-lista"></div>
     </div>
   </div>
@@ -730,6 +761,9 @@ let JSONBIN_BIN_ID = SUPA_SISTEMA;
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[] };
 let dataReady=false;
 let syncInterval = null;
+// Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
+// na hora de gravar, se outra pessoa mexeu nesse meio-tempo.
+let ultimoServidor = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
 
@@ -1133,12 +1167,23 @@ async function syncFromCloud(){
     if(!r.ok) return;
     const remote=await r.json();
     if(!remote) return;
+    const remoteStr=JSON.stringify(remote);
+    // So o servidor mudou de verdade desde a ultima leitura? Reconstruir a
+    // lista sem necessidade fazia a pagina voltar pro topo sozinha a cada
+    // 10 segundos — reconstruir o HTML reseta a rolagem. So refazemos a
+    // tela quando ha alteracao de verdade para mostrar.
+    const mudouNoServidor = remoteStr!==ultimoServidor;
+    ultimoServidor=remoteStr;
     data=remote;
     dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
-    render();
-    setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
-  }catch(e){ setStatus('🔴 Sem conexão'); }
+    if(mudouNoServidor){
+      const scrollY=window.scrollY;
+      render();
+      window.scrollTo(0,scrollY);
+    }
+    setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){ setStatus('🔴 Sem conexão','#ffcccc'); }
 }
 
 async function persistUsers(){
@@ -1153,6 +1198,88 @@ async function persistUsers(){
 }
 
 function _garanteCat(){ try{ buildCatLabel(); popularSelectCat(); }catch(e){} }
+// ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
+// Aqui os lancamentos tem "id", entao da para distinguir inclusao de edicao —
+// diferente do Compras, onde a comparacao e so pelo conteudo.
+const LISTAS_DADOS=['pagar','receber','movimentos','usuarios'];
+function chaveReg(r){ return (r&&r.id)?('id:'+r.id):('conteudo:'+JSON.stringify(r)); }
+
+function diferencas(antes,depois){
+  const inc=[],rem=[],alt=[];
+  LISTAS_DADOS.forEach(function(L){
+    const A={},D={};
+    ((antes&&antes[L])||[]).forEach(function(r){ A[chaveReg(r)]=r; });
+    ((depois&&depois[L])||[]).forEach(function(r){ D[chaveReg(r)]=r; });
+    Object.keys(D).forEach(function(k){
+      if(!(k in A)) inc.push({lista:L,reg:D[k],chave:k});
+      else if(JSON.stringify(A[k])!==JSON.stringify(D[k])) alt.push({lista:L,reg:D[k],chave:k});
+    });
+    Object.keys(A).forEach(function(k){ if(!(k in D)) rem.push({lista:L,reg:A[k],chave:k}); });
+  });
+  return {inc:inc,rem:rem,alt:alt};
+}
+
+function descreverReg(x){
+  const r=x.reg||{};
+  if(x.lista==='usuarios') return 'usuário '+(r.name||r.username||'');
+  const desc=r.desc||r.descricao||r.obs||'(sem descrição)';
+  const val=(r.valor!==undefined&&r.valor!==null)?(' — R$ '+fmtBR(r.valor)):'';
+  return desc+val;
+}
+
+function chavesTocadas(d){
+  return [].concat(d.inc,d.rem,d.alt).map(function(x){ return x.lista+'|'+x.chave; });
+}
+
+function htmlLadoConc(titulo,d,fundo,borda){
+  if(!d.inc.length&&!d.rem.length&&!d.alt.length) return '';
+  const linha=function(x,sinal){
+    return '<div style="font-size:12px;padding:3px 0;line-height:1.4">'+sinal+' '+
+           descreverReg(x)+' <span style="color:var(--gray-4)">('+x.lista+')</span></div>';
+  };
+  return '<div style="border:1px solid '+borda+';background:'+fundo+';border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+    '<div style="font-size:12px;font-weight:700;margin-bottom:6px">'+titulo+'</div>'+
+    d.inc.map(function(x){ return linha(x,'➕'); }).join('')+
+    d.alt.map(function(x){ return linha(x,'✏️'); }).join('')+
+    d.rem.map(function(x){ return linha(x,'➖'); }).join('')+
+  '</div>';
+}
+
+function pedirDecisaoConcorrencia(deles,meu,podeJuntar){
+  return new Promise(function(resolve){
+    document.getElementById('conc-deles').innerHTML=
+      htmlLadoConc('A outra pessoa gravou:',deles,'#FEF7E6','#F5D98A')||
+      '<div style="font-size:12px;color:var(--gray-4);margin-bottom:10px">A outra pessoa alterou algo que não dá para detalhar.</div>';
+    document.getElementById('conc-meu').innerHTML=
+      htmlLadoConc('Você está gravando:',meu,'#E6F8FB','#1FB6CF')||
+      '<div style="font-size:12px;color:var(--gray-4);margin-bottom:10px">Você não alterou lançamentos.</div>';
+    const bJ=document.getElementById('conc-btn-juntar');
+    const bM=document.getElementById('conc-btn-meu');
+    const bD=document.getElementById('conc-btn-descartar');
+    bJ.style.display = podeJuntar ? 'block' : 'none';
+    const ov=document.getElementById('conc-overlay');
+    function decidir(v){ bJ.onclick=bM.onclick=bD.onclick=null; ov.classList.remove('open'); resolve(v); }
+    bJ.onclick=function(){ decidir('juntar'); };
+    bM.onclick=function(){ decidir('meu'); };
+    bD.onclick=function(){ decidir('descartar'); };
+    ov.classList.add('open');
+  });
+}
+
+// Parte da versao do servidor e aplica por cima o que EU fiz.
+function juntarAlteracoes(servidor,minhas){
+  const res=JSON.parse(JSON.stringify(servidor));
+  const acha=function(L,chave){
+    if(!Array.isArray(res[L])) res[L]=[];
+    for(let i=0;i<res[L].length;i++){ if(chaveReg(res[L][i])===chave) return i; }
+    return -1;
+  };
+  minhas.inc.forEach(function(x){ if(acha(x.lista,x.chave)<0) res[x.lista].push(x.reg); });
+  minhas.alt.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista][i]=x.reg; else res[x.lista].push(x.reg); });
+  minhas.rem.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista].splice(i,1); });
+  return res;
+}
+
 async function persist(){
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.pagar||[]).length+(data.receber||[]).length+(data.usuarios||[]).length;
@@ -1161,13 +1288,79 @@ async function persist(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
-    await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+    // Antes de gravar por cima, conferir se o servidor mudou desde a ultima
+    // leitura. Este modulo grava o documento INTEIRO: sem esta conferencia, o
+    // salvamento apaga a alteracao de outra pessoa sem ninguem perceber.
+    if(ultimoServidor!==null){
+      let atual=null;
+      try{ atual=await lerRemoto(); }catch(e){ atual=null; }
+      if(atual && JSON.stringify(atual)!==ultimoServidor){
+        const base=JSON.parse(ultimoServidor);
+        const deles=diferencas(base,atual);   // o que a outra pessoa fez
+        const meu=diferencas(base,data);      // o que eu fiz
+        // "Salvar os dois" aparece quando cada um mexeu em lancamentos
+        // DIFERENTES. Se os dois mexeram no mesmo lancamento, a escolha e manual.
+        const dela=chavesTocadas(deles), minhas=chavesTocadas(meu);
+        const mesmoLancamento=minhas.some(function(k){ return dela.indexOf(k)>=0; });
+        const podeJuntar = !mesmoLancamento && (dela.length>0 || minhas.length>0);
+        const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
+        if(escolha==='descartar'){
+          setStatus('↩️ Carregando a versão mais nova...');
+          ultimoServidor=null;
+          await syncFromCloud();
+          return;
+        }
+        if(escolha==='juntar'){
+          data=juntarAlteracoes(atual,meu);
+          localStorage.setItem('fin-data',JSON.stringify(data));
+          render();
+        }
+        // 'meu' = segue adiante e grava o que esta na tela, por cima
+      }
+    }
+
+    // Carimbo unico, usado logo abaixo para conferir se a gravacao realmente
+    // aconteceu. Vai junto no documento.
+    const carimbo=new Date().toISOString()+'-'+Math.random().toString(36).slice(2,8);
+    data.atualizadoEm=carimbo;
+    data.atualizadoPor=sessionStorage.getItem('fin-user')||'';
+
+    const resp=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
       method:'PATCH',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
     });
-    setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
-  }catch(e){ setStatus('🔴 Erro ao salvar'); }
+    // A resposta nao era conferida: um erro do servidor passava batido e a
+    // tela mostrava "salvo" do mesmo jeito.
+    if(!resp.ok) throw new Error('Servidor recusou a gravação: '+resp.status);
+
+    // Mesmo com resposta ok, conferimos relendo: gravacao aceita nem sempre
+    // significa gravacao aplicada.
+    let confere=null;
+    try{ confere=await lerRemoto(); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      setStatus('🔴 NÃO gravou no servidor','#ffcccc');
+      alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'O que você digitou continua nesta tela e no seu navegador, mas ainda NÃO está salvo '+
+            'para as outras pessoas.\n\n'+
+            'Não feche a página. Verifique a internet e tente salvar de novo. '+
+            'Se continuar, avise o responsável pelo sistema.');
+      return;
+    }
+    ultimoServidor=JSON.stringify(confere);
+
+    setStatus('🟢 Salvo · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){ setStatus('🔴 Erro ao salvar — salvo localmente','#ffcccc'); }
+}
+
+// Leitura pelo Worker, usada para conferir o servidor antes e depois de gravar.
+async function lerRemoto(){
+  const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+  });
+  if(!r.ok) throw new Error('Worker '+r.status);
+  return await r.json();
 }
 
 
@@ -1176,13 +1369,25 @@ function slugCat(t){
   return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
           .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
 }
+// Tira acento para a busca: procurar "eletrica" tem de achar "Elétrica".
+function semAcento(t){
+  return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+}
 function usoCategoria(id){ return (data.pagar||[]).filter(r=>r.cat===id).length; }
 function openCategorias(){ renderCategorias(); document.getElementById('cat-overlay').classList.add('open'); }
 function closeCategorias(){ document.getElementById('cat-overlay').classList.remove('open'); }
 function renderCategorias(){
   const cats=getCategorias();
   const el=document.getElementById('cat-lista');
-  el.innerHTML=cats.map((c,i)=>{
+  const q=semAcento(document.getElementById('cat-busca')?document.getElementById('cat-busca').value:'').trim();
+  // Guarda a posicao real na lista, para os botoes agirem na conta certa
+  // mesmo com a busca filtrando o que aparece.
+  const visiveis=cats.map((c,i)=>({c,i})).filter(x=>!q||semAcento(x.c.label).indexOf(q)>=0);
+  if(q&&!visiveis.length){
+    el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4);padding:14px 0;text-align:center">Nenhuma conta encontrada.</div>';
+    return;
+  }
+  el.innerHTML=visiveis.map(({c,i})=>{
     const uso=usoCategoria(c.id);
     const off=c.ativo===false;
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--gray-2);${off?'opacity:.5':''}">
@@ -1244,7 +1449,12 @@ async function removerCategoria(i){
   await salvarCategorias();
 }
 
-function setStatus(msg){ document.getElementById('sync-status').textContent=msg; }
+// Aceita cor como segundo parametro, igual ao Compras e ao Fabrica — sem isso,
+// o aviso vermelho de "nao gravou" saia sem destaque nenhum.
+function setStatus(msg, color='rgba(255,255,255,0.8)'){
+  const el=document.getElementById('sync-status');
+  el.textContent=msg; el.style.color=color;
+}
 
 // ---- HELPERS ----
 function fmtBR(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -1462,15 +1672,54 @@ function calcSaldoConta(conta){
 }
 
 // ---- ALERTAS ----
+// Fica fechado por padrao: vira uma barra resumida, e so mostra a lista
+// inteira quando a pessoa clica. Sobrevive as atualizacoes automaticas
+// porque e uma variavel, nao algo recalculado do zero a cada render().
+let notifAberto=false;
+function toggleNotifFin(){
+  notifAberto=!notifAberto;
+  const det=document.getElementById('notif-detalhes');
+  const acao=document.getElementById('notif-acao');
+  if(det) det.style.display=notifAberto?'block':'none';
+  if(acao) acao.textContent=notifAberto?'Ocultar ▲':'Ver detalhes ▼';
+}
+
 function renderNotif(){
   const todayStr=today();
   const in3=new Date(); in3.setDate(in3.getDate()+3); const in3str=in3.toISOString().slice(0,10);
   const vencidos=data.pagar.filter(r=>!r.dtPag&&r.venc<todayStr);
   const vencendo3=data.pagar.filter(r=>!r.dtPag&&r.venc>=todayStr&&r.venc<=in3str);
+  const total=vencidos.length+vencendo3.length;
+  const area=document.getElementById('notif-area');
+  if(!total){ area.innerHTML=''; return; }
+
   let html='';
-  if(vencidos.length) html+=`<div class="notif-banner" style="background:#FDF0EE;border-left:4px solid #C0392B"><div style="flex:1"><strong>🚨 ${vencidos.length} conta${vencidos.length>1?'s':''} a pagar VENCIDA${vencidos.length>1?'S':''}</strong> — ${vencidos.map(r=>r.desc+' (R$ '+fmtBR(r.valor)+')').join(' · ')}</div><span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span></div>`;
-  if(vencendo3.length) html+=`<div class="notif-banner" style="background:#FEF7E6;border-left:4px solid #B9770E"><div style="flex:1"><strong>⏰ ${vencendo3.length} conta${vencendo3.length>1?'s':''} a pagar vence${vencendo3.length>1?'m':''} em até 3 dias</strong> — ${vencendo3.map(r=>r.desc+' '+fmtDate(r.venc)).join(' · ')}</div><span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span></div>`;
-  document.getElementById('notif-area').innerHTML=html;
+  if(vencidos.length) html+=`<div class="notif-banner" style="background:#FDF0EE;border-left:4px solid #C0392B">
+    <div style="flex:1">
+      <strong>🚨 ${vencidos.length} conta${vencidos.length>1?'s':''} a pagar VENCIDA${vencidos.length>1?'S':''}</strong>
+      <div style="margin-top:6px">
+        ${vencidos.map(r=>`<div class="notif-item">⚠️ ${r.desc} — <strong>R$ ${fmtBR(r.valor)}</strong></div>`).join('')}
+      </div>
+    </div>
+    <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+  </div>`;
+  if(vencendo3.length) html+=`<div class="notif-banner" style="background:#FEF7E6;border-left:4px solid #B9770E">
+    <div style="flex:1">
+      <strong>⏰ ${vencendo3.length} conta${vencendo3.length>1?'s':''} a pagar vence${vencendo3.length>1?'m':''} em até 3 dias</strong>
+      <div style="margin-top:6px">
+        ${vencendo3.map(r=>`<div class="notif-item">🔔 ${r.desc} — <strong>${fmtDate(r.venc)}</strong></div>`).join('')}
+      </div>
+    </div>
+    <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+  </div>`;
+
+  const critico=vencidos.length>0;
+  area.innerHTML=
+    `<div class="notif-resumo" style="background:${critico?'#FDF0EE':'#FEF7E6'};color:${critico?'#7a1f1f':'#6b4100'}" onclick="toggleNotifFin()">
+      <strong>${critico?'🚨':'⏰'} ${total} aviso${total>1?'s':''} do financeiro</strong>
+      <span class="notif-resumo-acao" id="notif-acao">${notifAberto?'Ocultar ▲':'Ver detalhes ▼'}</span>
+    </div>
+    <div class="notif-detalhes" id="notif-detalhes" style="display:${notifAberto?'block':'none'}">${html}</div>`;
 }
 
 // ---- CONTAS A PAGAR ----
@@ -2018,7 +2267,12 @@ async function init(){
   popularSelectCat();
   populateMesFiltros();
   render();
-  syncInterval=setInterval(syncFromCloud,30000);
+  // A cada 10 segundos, mas NUNCA com um formulario aberto: a sincronizacao
+  // troca os dados por baixo de quem esta editando.
+  syncInterval=setInterval(function(){
+    if(document.querySelector('.modal-overlay.open')) return;
+    syncFromCloud();
+  },10000);
 }
 
 ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>{
