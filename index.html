@@ -121,6 +121,20 @@ tbody tr:hover td{background:var(--gray-1)}
 .act-pay:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
 .act-del:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-light)}
 .act-edit:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.act-comprov:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
+/* Escolha da empresa que emite o comprovante */
+.emp-op{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--gray-3);
+  border-radius:var(--radius);cursor:pointer;margin-bottom:8px;transition:all .1s}
+.emp-op:hover{border-color:var(--gray-4);background:var(--gray-1)}
+.emp-op.on{border-color:var(--green-mid);background:var(--green-light)}
+.emp-op input{width:auto;margin-top:3px;flex:none}
+.emp-op b{display:block;font-size:14px;letter-spacing:.5px;color:var(--gray-6)}
+/* Cartoes da tela de cadastro das empresas */
+.emp-card{border:1px solid var(--gray-3);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+.emp-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+  padding-bottom:8px;border-bottom:1px solid var(--gray-2)}
+.emp-card-top span{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--gray-6)}
+.emp-op small{display:block;font-size:11px;color:var(--gray-5);line-height:1.35}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;padding:1rem}
@@ -215,6 +229,9 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
 
     <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
+    </button>
+    <button id="emp-btn" class="btn btn-ghost btn-sm" onclick="openEmpresas()" style="display:none" title="Cadastrar as empresas que emitem comprovante">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/></svg>Empresas
     </button>
     <button id="cat-btn" class="btn btn-ghost btn-sm" onclick="openCategorias()" style="display:none" title="Cadastrar contas de despesa">
       <svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Contas
@@ -650,6 +667,44 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
   </div>
 </div>
 
+<!-- MODAL CADASTRO DAS EMPRESAS -->
+<div class="modal-overlay" id="empresas-overlay">
+  <div class="modal" style="width:min(700px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Empresas do comprovante</div>
+      <button class="act" onclick="closeEmpresas()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        ℹ️ Estes dados aparecem no <strong>cabeçalho e na assinatura</strong> do comprovante de recebimento. Ao emitir, o sistema pergunta por qual empresa.
+      </div>
+      <div id="empresas-lista"></div>
+      <button class="btn btn-outline btn-sm" onclick="addEmpresa()">+ Adicionar empresa</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeEmpresas()">Cancelar</button>
+      <button class="btn btn-green" onclick="salvarEmpresas()">Salvar empresas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ESCOLHA DA EMPRESA DO COMPROVANTE -->
+<div class="modal-overlay" id="empresa-overlay">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Emitir comprovante por qual empresa?</div>
+      <button class="act" onclick="closeEmpresa()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="emp-lista"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeEmpresa()">Cancelar</button>
+      <button class="btn btn-green" onclick="confirmarEmpresa()">Emitir comprovante</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SALDOS INICIAIS -->
 <div class="modal-overlay" id="saldos-overlay">
   <div class="modal" style="width:min(460px,100%)">
@@ -985,6 +1040,8 @@ function updateSaldosBtn(){
   if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
   const cb=document.getElementById('cat-btn');
   if(cb) cb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const eb=document.getElementById('emp-btn');
+  if(eb) eb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -2826,6 +2883,7 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+          ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="comprovanteRecebimento(${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
           <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
           </button>
@@ -2839,6 +2897,272 @@ function renderReceber(){
   const totalRec=data.receber.filter(r=>r.dtRec).reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
   document.getElementById('t-receber').textContent='R$ '+fmtBR(pendRec);
   document.getElementById('t-recebido').textContent='R$ '+fmtBR(totalRec);
+}
+
+// ---- EMPRESAS QUE EMITEM COMPROVANTE ----
+// Dados do Comprovante de Inscricao da Receita Federal. Sao informacao publica
+// (qualquer um consulta pelo CNPJ), por isso podem ficar no arquivo.
+// Os CEPs sao mesmo diferentes apesar do mesmo numero na rua.
+const EMPRESAS=[
+  { cod:'daluminium', marca:'DALUMINIUM',
+    razao:"INDÚSTRIA E COMÉRCIO DE ESQUADRIAS E REVESTIMENTO D'ALUMÍNIO LTDA",
+    cnpj:'17.183.753/0001-82',
+    endereco:'Av. José Vieira Caula, 4651 — Brcão Galpões',
+    bairro:'Flodoaldo Pontes Pinto', cep:'76.820-519', cidade:'Porto Velho', uf:'RO' },
+  { cod:'solution', marca:'SOLUTION',
+    razao:'SOLUTION SOLUÇÕES EM ESQUADRIAS DE ALUMÍNIO LTDA',
+    cnpj:'22.714.305/0001-06',
+    endereco:'R. José Vieira Caula, 4651 — Sala D',
+    bairro:'Flodoaldo Pontes Pinto', cep:'76.824-389', cidade:'Porto Velho', uf:'RO' },
+];
+// A lista de verdade e a que esta gravada. Os dois cadastros acima sao so o
+// ponto de partida, usados enquanto ninguem tiver mexido na tela de empresas.
+function empresasCadastradas(){
+  return (Array.isArray(data.empresas)&&data.empresas.length)?data.empresas:EMPRESAS;
+}
+// Se a empresa lembrada foi apagada, cai na primeira em vez de emitir sem
+// cabecalho.
+function empresaPorCod(cod){
+  const l=empresasCadastradas();
+  return l.find(e=>e.cod===cod)||l[0];
+}
+
+// ---- TELA DE CADASTRO DAS EMPRESAS ----
+// Trabalha numa copia. Nada vai para os dados enquanto a pessoa nao salvar, para
+// quem abriu, mexeu e desistiu nao deixar meia edicao gravada.
+let empresasEdit=[];
+
+function openEmpresas(){
+  empresasEdit=empresasCadastradas().map(e=>({...e}));
+  renderEmpresasEdit();
+  document.getElementById('empresas-overlay').classList.add('open');
+}
+function closeEmpresas(){
+  document.getElementById('empresas-overlay').classList.remove('open');
+  empresasEdit=[];
+}
+
+// Antes de qualquer redesenho, recolhe o que ja foi digitado. Sem isto,
+// acrescentar ou remover uma empresa apagaria o que a pessoa acabou de escrever.
+function lerCamposEmpresas(){
+  empresasEdit.forEach((e,i)=>{
+    ['marca','razao','cnpj','endereco','bairro','cep','cidade','uf'].forEach(c=>{
+      const el=document.getElementById(`ecad-${i}-${c}`);
+      if(el) e[c]=el.value.trim();
+    });
+  });
+}
+
+function renderEmpresasEdit(){
+  const campo=(i,c,rot,ph,span)=>`<div class="form-group${span?' span2':''}">
+      <label>${rot}</label>
+      <input id="ecad-${i}-${c}" type="text" value="${(empresasEdit[i][c]||'').replace(/"/g,'&quot;')}" placeholder="${ph||''}">
+    </div>`;
+  document.getElementById('empresas-lista').innerHTML=empresasEdit.map((e,i)=>`
+    <div class="emp-card">
+      <div class="emp-card-top">
+        <span>${e.marca||'Nova empresa'}</span>
+        <button class="btn btn-red btn-sm" onclick="removerEmpresa(${i})">Excluir</button>
+      </div>
+      <div class="form-grid">
+        ${campo(i,'marca','Nome curto (aparece grande no comprovante)','Ex: DALUMINIUM')}
+        ${campo(i,'cnpj','CNPJ','00.000.000/0000-00')}
+        ${campo(i,'razao','Razão social',"Nome completo na Receita",true)}
+        ${campo(i,'endereco','Endereço','Rua, número e complemento',true)}
+        ${campo(i,'bairro','Bairro','')}
+        ${campo(i,'cep','CEP','00.000-000')}
+        ${campo(i,'cidade','Cidade','')}
+        ${campo(i,'uf','UF','RO')}
+      </div>
+    </div>`).join('');
+}
+
+function addEmpresa(){
+  lerCamposEmpresas();
+  empresasEdit.push({cod:genId(),marca:'',razao:'',cnpj:'',endereco:'',bairro:'',cep:'',cidade:'Porto Velho',uf:'RO'});
+  renderEmpresasEdit();
+}
+
+function removerEmpresa(i){
+  lerCamposEmpresas();
+  if(empresasEdit.length<2){ alert('É preciso manter ao menos uma empresa — o comprovante sai com os dados dela.'); return; }
+  if(!confirm('Remover '+(empresasEdit[i].marca||'esta empresa')+' do cadastro?')) return;
+  empresasEdit.splice(i,1);
+  renderEmpresasEdit();
+}
+
+async function salvarEmpresas(){
+  lerCamposEmpresas();
+  for(const e of empresasEdit){
+    if(!e.marca){ alert('Toda empresa precisa do nome curto.'); return; }
+    if(!e.razao){ alert(e.marca+': falta a razão social.'); return; }
+    const so=(e.cnpj||'').replace(/\D/g,'');
+    if(so.length!==14){ alert(e.marca+': o CNPJ precisa ter 14 números.'); return; }
+    // Grava sempre no mesmo formato, mesmo que tenha sido digitado so em numeros.
+    e.cnpj=so.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+  }
+  data.empresas=empresasEdit.map(e=>({...e}));
+  closeEmpresas();
+  await persist();
+  alert('Empresas salvas.');
+}
+
+// Guarda o titulo escolhido enquanto a pessoa decide de qual empresa emitir.
+let comprovanteIdx=null;
+
+// Abre a escolha da empresa. A ultima usada ja vem marcada, porque na pratica
+// varios comprovantes seguidos saem pela mesma.
+function comprovanteRecebimento(idx){
+  const r=data.receber[idx];
+  if(!r) return;
+  if(!baixasDe(r,'receber').length){ alert('Este título ainda não tem recebimento registrado.'); return; }
+  comprovanteIdx=idx;
+  const lista=empresasCadastradas();
+  const ultima=localStorage.getItem('fin-empresa-comprovante')||lista[0].cod;
+  const temUltima=lista.some(e=>e.cod===ultima);
+  document.getElementById('emp-lista').innerHTML=lista.map((e,i)=>{
+    const marcada=temUltima?e.cod===ultima:i===0;
+    return `
+    <label class="emp-op${marcada?' on':''}">
+      <input type="radio" name="emp" value="${e.cod}" ${marcada?'checked':''}
+             onchange="document.querySelectorAll('.emp-op').forEach(x=>x.classList.remove('on'));this.closest('.emp-op').classList.add('on')">
+      <span>
+        <b>${e.marca||'(sem nome)'}</b>
+        <small>${e.razao||''}</small>
+        <small>CNPJ ${e.cnpj||'—'}</small>
+      </span>
+    </label>`;}).join('');
+  document.getElementById('empresa-overlay').classList.add('open');
+}
+function closeEmpresa(){ document.getElementById('empresa-overlay').classList.remove('open'); comprovanteIdx=null; }
+function confirmarEmpresa(){
+  const esc=document.querySelector('input[name="emp"]:checked');
+  if(!esc){ alert('Escolha a empresa que vai emitir.'); return; }
+  localStorage.setItem('fin-empresa-comprovante',esc.value);
+  const idx=comprovanteIdx;
+  closeEmpresa();
+  emitirComprovante(idx,esc.value);
+}
+
+// ---- COMPROVANTE DE RECEBIMENTO ----
+// Documento para entregar a quem pagou. Lista todas as baixas ja registradas no
+// titulo, com o total recebido e o que ainda falta — assim serve tanto para
+// pagamento de uma vez quanto para parcelado, sem precisar escolher qual baixa.
+function emitirComprovante(idx,codEmpresa){
+  const r=data.receber[idx];
+  if(!r) return;
+  const l=baixasDe(r,'receber');
+  if(!l.length){ alert('Este título ainda não tem recebimento registrado.'); return; }
+  const emp=empresaPorCod(codEmpresa);
+
+  const recebido=recebidoDe(r), falta=faltaReceber(r);
+  const quitado=falta<=0.004;
+  const money=v=>'R$ '+fmtBR(v);
+  const agora=new Date();
+  const numero=String(r.id||idx+1).slice(-6).toUpperCase();
+  const porExtensoData=agora.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'});
+  const emitidoPor=sessionStorage.getItem('fin-user')||'';
+
+  const formas=[];
+  if(r.avista) formas.push('À vista '+money(r.avista));
+  if(r.cartao) formas.push('Cartão '+money(r.cartao));
+  if(r.boleto) formas.push('Boleto '+money(r.boleto));
+
+  const linhas=l.map((b,i)=>`<tr>
+      <td class="c">${i+1}</td>
+      <td>${fmtDate(b.data)}</td>
+      <td>${CONTA_LABEL[b.conta]||b.conta||'—'}</td>
+      <td>${b.obs||'—'}</td>
+      <td class="v">${money(b.valor)}</td>
+    </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Comprovante ${numero} · ${r.cliente} · ${emp.marca}</title>
+<style>
+  @page{size:A4 portrait;margin:16mm}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;font-size:12px;line-height:1.45}
+  .folha{border:1px solid #c9ced2;border-radius:6px;padding:18px 20px}
+  .cab{display:flex;justify-content:space-between;align-items:flex-start;
+       border-bottom:2px solid #0F6E63;padding-bottom:10px;margin-bottom:14px}
+  .marca{font-size:20px;font-weight:800;letter-spacing:1.5px;color:#0F6E63;line-height:1.1}
+  .marca small{display:block;font-size:8.5px;font-weight:400;letter-spacing:.2px;color:#555;margin-top:3px;max-width:88mm}
+  .marca small b{font-weight:700;color:#333}
+  .tit{text-align:right}
+  .tit b{font-size:13px;letter-spacing:.5px;color:#0F6E63}
+  .tit span{display:block;font-size:9px;color:#777;margin-top:2px}
+  .campos{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-bottom:14px}
+  .campo{border-bottom:1px dotted #c9ced2;padding-bottom:3px}
+  .campo.largo{grid-column:1 / -1}
+  .rot{font-size:8px;text-transform:uppercase;letter-spacing:.6px;color:#777;display:block}
+  .dado{font-size:12px;font-weight:600}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px}
+  th{background:#0F6E63;color:#fff;font-size:8px;text-transform:uppercase;letter-spacing:.5px;
+     padding:5px 6px;text-align:left;border:1px solid #0F6E63}
+  td{padding:4px 6px;border:1px solid #e3e6e8}
+  .c{text-align:center;width:8mm}
+  .v{text-align:right;white-space:nowrap;font-weight:600}
+  .resumo{display:flex;justify-content:flex-end;gap:22px;align-items:center;
+          border-top:2px solid #0F6E63;padding-top:8px;margin-bottom:16px}
+  .resumo div{text-align:right}
+  .resumo .rot{text-align:right}
+  .grande{font-size:16px;font-weight:800;color:#146c43}
+  .falta{font-size:13px;font-weight:700;color:#b02a37}
+  .selo{margin-left:auto;border:2px solid ${quitado?'#146c43':'#b58100'};color:${quitado?'#146c43':'#b58100'};
+        border-radius:5px;padding:5px 14px;font-weight:800;letter-spacing:1.5px;font-size:13px}
+  .local{margin:18px 0 26px;font-size:12px}
+  .assina{width:62mm;margin:0 auto;text-align:center;border-top:1px solid #1a1a1a;padding-top:4px;font-size:10px}
+  .rodape{margin-top:16px;padding-top:6px;border-top:1px solid #d5d9dc;
+          display:flex;justify-content:space-between;font-size:8px;color:#888}
+</style></head><body>
+<div class="folha">
+  <div class="cab">
+    <div class="marca">${emp.marca}
+      <small>${emp.razao}</small>
+      <small><b>CNPJ ${emp.cnpj}</b></small>
+      <small>${emp.endereco} · ${emp.bairro}</small>
+      <small>CEP ${emp.cep} · ${emp.cidade}/${emp.uf}</small></div>
+    <div class="tit"><b>COMPROVANTE DE RECEBIMENTO</b>
+      <span>Nº ${numero}</span>
+      <span>Emitido em ${agora.toLocaleString('pt-BR')}</span></div>
+  </div>
+
+  <div class="campos">
+    <div class="campo largo"><span class="rot">Recebemos de</span><span class="dado">${r.cliente}</span></div>
+    ${r.contrato?`<div class="campo"><span class="rot">Contrato</span><span class="dado">${r.contrato}</span></div>`:''}
+    <div class="campo"><span class="rot">Vencimento</span><span class="dado">${fmtDate(r.venc)}</span></div>
+    <div class="campo largo"><span class="rot">Referente a</span><span class="dado">${r.desc||'—'}</span></div>
+    <div class="campo"><span class="rot">Valor do título</span><span class="dado">${money(r.valor)}</span></div>
+    ${formas.length?`<div class="campo"><span class="rot">Forma combinada</span><span class="dado">${formas.join(' · ')}</span></div>`:''}
+  </div>
+
+  <table>
+    <thead><tr><th class="c">#</th><th style="width:26mm">Data</th><th style="width:32mm">Conta</th>
+      <th>Observação</th><th style="width:28mm" class="v">Valor</th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>
+
+  <div class="resumo">
+    <div class="selo">${quitado?'QUITADO':'PARCIAL'}</div>
+    <div><span class="rot">Total recebido</span><span class="grande">${money(recebido)}</span></div>
+    ${quitado?'':`<div><span class="rot">Saldo a receber</span><span class="falta">${money(falta)}</span></div>`}
+  </div>
+
+  <div class="local">${emp.cidade}/${emp.uf}, ${porExtensoData}.</div>
+  <div class="assina">${emp.marca}<br><span style="font-size:8px;color:#666">CNPJ ${emp.cnpj}</span></div>
+
+  <div class="rodape">
+    <span>${emp.marca} · Financeiro${emitidoPor?' · emitido por '+emitidoPor:''}</span>
+    <span>Documento gerado pelo sistema</span>
+  </div>
+</div>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+  const w=window.open('','_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 function calcTotalRec(){
@@ -3437,11 +3761,11 @@ async function init(){
   },10000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
