@@ -1187,7 +1187,11 @@ async function hashSenha(senha){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-const MAX_TENTATIVAS=5, BLOQUEIO_MS=5*60*1000;
+// 15 minutos, o MESMO tempo da trava do Worker (auditoria de LGPD,
+// 18/09/2026). Esta aqui fica no navegador e se contorna trocando de
+// navegador; serve para avisar "X tentativas restantes". A que protege e a do
+// Worker, que conta no servidor.
+const MAX_TENTATIVAS=5, BLOQUEIO_MS=15*60*1000;
 function getTentativas(){ try{ return JSON.parse(localStorage.getItem('fin-login-tries')||'{"count":0,"ts":0}'); }catch{ return {count:0,ts:0}; } }
 function setTentativas(obj){ localStorage.setItem('fin-login-tries',JSON.stringify(obj)); }
 function resetTentativas(){ localStorage.removeItem('fin-login-tries'); }
@@ -1322,11 +1326,15 @@ async function doLogin(){
     cracha=await fazerLoginWorker(user,pass);
   }catch(e){
     document.querySelector('.login-btn').textContent='Entrar';
-    if(e.status===401){
+    // Bloqueado pelo Worker por excesso de senhas erradas (auditoria de LGPD,
+    // 18/09/2026). A mensagem dele ja diz quantos minutos faltam.
+    if(e.status===429){
+      err.textContent=e.message;
+    }else if(e.status===401){
       const restante=registrarFalha();
       err.textContent=restante>0
         ? `Usuário ou senha incorretos. ${restante} tentativa${restante>1?'s':''} restante${restante>1?'s':''}.`
-        : 'Acesso bloqueado por 5 minutos.';
+        : 'Acesso bloqueado por 15 minutos.';
     }else{
       // Erro de conexão não é senha errada — não pode gastar tentativa, senão
       // uma queda de internet acaba bloqueando quem digitou tudo certo.
