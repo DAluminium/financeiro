@@ -407,6 +407,9 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
         <button class="btn btn-outline btn-sm" onclick="printCaixa()" title="Imprimir o fluxo de caixa como está na tela">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
+        <button class="btn btn-outline btn-sm" onclick="openModalLancamento()" title="Dinheiro que entrou ou saiu sem ser venda">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Lançamento no banco
+        </button>
         <button class="btn btn-green btn-sm" onclick="openModalTransferencia()">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Transferência
         </button>
@@ -416,7 +419,7 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Data</th><th>Descrição</th><th>Tipo</th><th>Conta</th><th>Entrada</th><th>Saída</th><th>Saldo</th>
+          <th>Data</th><th>Descrição</th><th>Tipo</th><th>Conta</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Ações</th>
         </tr></thead>
         <tbody id="tbody-caixa"></tbody>
       </table>
@@ -683,6 +686,49 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeTransf()">Cancelar</button>
       <button class="btn btn-green" onclick="saveTransf()">Confirmar transferência</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LANCAMENTO DIRETO NO BANCO -->
+<div class="modal-overlay" id="lanc-overlay">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Lançamento no banco</div>
+      <button class="act" onclick="closeLanc()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:14px">
+        ℹ️ Para dinheiro que <strong>não veio de venda</strong> — aporte de sócio, empréstimo, reembolso, tarifa avulsa.
+        Entra direto no banco e no fluxo de caixa. <strong>Não</strong> aparece em "Recebido do mês" nem em "A receber",
+        que continuam sendo só de cliente.
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>Tipo <span style="color:var(--red)">*</span></label>
+          <select id="lc-tipo">
+            <option value="entrada">Entrada (dinheiro entrou)</option>
+            <option value="saida">Saída (dinheiro saiu)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Conta <span style="color:var(--red)">*</span></label>
+          <select id="lc-conta">
+            <option value="pagbank">PagBank</option>
+            <option value="inter">Inter</option>
+            <option value="sicredi">Sicredi</option>
+            <option value="caixa">Caixa (espécie)</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="transitorio">Transitório</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Valor <span style="color:var(--red)">*</span></label><input id="lc-valor" type="text" placeholder="Ex: 1.500,00"></div>
+        <div class="form-group"><label>Data <span style="color:var(--red)">*</span></label><input id="lc-data" type="date"></div>
+        <div class="form-group span2"><label>Descrição <span style="color:var(--red)">*</span></label><input id="lc-desc" type="text" placeholder="Ex: Aporte da sócia Aretusa"></div>
+        <div class="form-group span2"><label>Observação</label><input id="lc-obs" type="text" placeholder="opcional"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeLanc()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveLanc()">Confirmar lançamento</button>
     </div>
   </div>
 </div>
@@ -3368,6 +3414,12 @@ function calcSaldoTotal(){
   // valores, e nao o total cheio de uma vez so.
   data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ saldo+=Number(b.valor)||0; }); });
   data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ saldo-=Number(b.valor)||0; }); });
+  // Lançamentos feitos direto no banco. Transferência continua de fora: ela
+  // só muda o dinheiro de lugar, não muda o total.
+  (data.movimentos||[]).forEach(function(m){
+    if(m.tipo==='entrada') saldo+=Number(m.valor)||0;
+    if(m.tipo==='saida')   saldo-=Number(m.valor)||0;
+  });
   return saldo;
 }
 
@@ -3380,9 +3432,37 @@ function calcSaldoConta(conta){
   data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ if((b.conta||r.conta)===conta) s+=Number(b.valor)||0; }); });
   data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ if((b.conta||r.conta)===conta) s-=Number(b.valor)||0; }); });
   (data.movimentos||[]).forEach(m=>{
+    // Lançamento feito direto no banco entra no saldo daquela conta.
+    if((m.tipo==='entrada'||m.tipo==='saida') && m.conta===conta){
+      s+=(m.tipo==='entrada'?1:-1)*(Number(m.valor)||0);
+    }
     if(m.tipo==='transferencia'){
       if(m.destino===conta) s+=m.valor;
       if(m.origem===conta) s-=m.valor;
+    }
+  });
+  return s;
+}
+
+// Saldo de uma conta ATE um dia (inclusive). E o mesmo calculo do cartao,
+// so que parando numa data — e o numero que se compara com o extrato do
+// banco naquele dia.
+function saldoContaAte(conta, dia){
+  if(!dia) return calcSaldoConta(conta);
+  const si=data.saldosIniciais||{};
+  let s=Number(si[conta])||0;
+  data.receber.forEach(function(r){ baixasDe(r,'receber').forEach(function(b){
+    if((b.conta||r.conta)===conta && b.data && b.data<=dia) s+=Number(b.valor)||0; }); });
+  data.pagar.forEach(function(r){ baixasDe(r,'pagar').forEach(function(b){
+    if((b.conta||r.conta)===conta && b.data && b.data<=dia) s-=Number(b.valor)||0; }); });
+  (data.movimentos||[]).forEach(function(m){
+    if(!m.data || m.data>dia) return;
+    if(m.tipo==='transferencia'){
+      if(m.destino===conta) s+=Number(m.valor)||0;
+      if(m.origem===conta)  s-=Number(m.valor)||0;
+    }
+    if((m.tipo==='entrada'||m.tipo==='saida') && m.conta===conta){
+      s+=(m.tipo==='entrada'?1:-1)*(Number(m.valor)||0);
     }
   });
   return s;
@@ -4589,11 +4669,21 @@ function movimentosDoCaixa(){
         tipo:'Recebimento',conta:b.conta||r.conta,entrada:Number(b.valor)||0,saida:0});
     });
   });
+  // Lançamentos feitos direto no banco (sem contas a pagar/receber).
+  (data.movimentos||[]).forEach(m=>{
+    if(m.tipo==='entrada'||m.tipo==='saida'){
+      // leva o id: e por ele que a lixeira sabe o que apagar
+      movs.push({id:m.id, data:m.data, desc:m.desc||'Lançamento no banco',
+        tipo:m.tipo==='entrada'?'Outra entrada':'Outra saída', conta:m.conta,
+        entrada:m.tipo==='entrada'?(Number(m.valor)||0):0,
+        saida:m.tipo==='saida'?(Number(m.valor)||0):0});
+    }
+  });
   // Transferências
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
-      movs.push({data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:'Transferência',conta:m.origem,saida:m.valor,entrada:0});
-      movs.push({data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:'Transferência',conta:m.destino,entrada:m.valor,saida:0});
+      movs.push({id:m.id,data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:'Transferência',conta:m.origem,saida:m.valor,entrada:0});
+      movs.push({id:m.id,data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:'Transferência',conta:m.destino,entrada:m.valor,saida:0});
     }
   });
 
@@ -4638,22 +4728,43 @@ function renderCaixa(){
   const saldosDiv=document.getElementById('contas-saldos');
   const si=data.saldosIniciais||{};
   const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
+  const caixa=movimentosDoCaixa();
+  const {filtered,withSaldo,totalEnt,totalSai,saldoAnterior,saldoFinal,inicioPeriodo}=caixa;
+
+  // Ate que dia vai o periodo escolhido. Mes inteiro: o dia 31 serve para
+  // comparar texto, porque as datas ficam guardadas como 2026-08-13.
+  const fimDoPeriodo = (caixa.filtMes==='livre') ? (caixa.ate||'')
+                     : (caixa.filtMes ? caixa.filtMes+'-31' : '');
+  const mostraFim = !!fimDoPeriodo && fimDoPeriodo < today();
+  // Como escrever o fim do periodo: mes inteiro vira o nome do mes (nem todo
+  // mes tem dia 31), e periodo livre vira a data escolhida.
+  const comoEscreverFim = (caixa.filtMes==='livre')
+    ? ('em '+fmtDate(caixa.ate||today()))
+    : ('no fim de '+(caixa.filtMes?mesLabel(caixa.filtMes+'-01'):''));
+
   saldosDiv.innerHTML=contas.map(c=>{
     const s=calcSaldoConta(c);
     const sInicial=si[c]||0;
-    return`<div class="conta-card">
+    // O numero grande e o saldo de HOJE. Quando ha periodo escolhido, vem
+    // junto o saldo no fim dele — que e o que se confere com o extrato.
+    // Sem isso, os dois numeros ficavam lado a lado sem dizer o que eram, e
+    // a conciliacao "nao batia" (28/09/2026).
+    const doPeriodo = mostraFim ? saldoContaAte(c, fimDoPeriodo) : null;
+    return `<div class="conta-card">
       <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
       ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
       <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
+      <div style="font-size:10px;color:var(--gray-4)">saldo de hoje</div>
+      ${doPeriodo===null?'':`<div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--gray-3);font-size:11px;color:var(--gray-5)">
+        ${comoEscreverFim}:
+        <strong style="color:${doPeriodo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(doPeriodo)}</strong></div>`}
     </div>`;
   }).join('');
-
-  const {filtered,withSaldo,totalEnt,totalSai,saldoAnterior,saldoFinal,inicioPeriodo}=movimentosDoCaixa();
 
   // Linha do saldo anterior, no pé da lista — que é onde fica o mais antigo,
   // já que a tabela mostra do mais novo para o mais velho.
   const linhaAnterior=`<tr style="background:var(--gray-1)">
-    <td colspan="6" style="font-size:12px;color:var(--gray-5);font-style:italic">
+    <td colspan="7" style="font-size:12px;color:var(--gray-5);font-style:italic">
       Saldo anterior${inicioPeriodo?' (até '+fmtDate(inicioPeriodo)+')':''}</td>
     <td style="font-weight:700;color:${saldoAnterior>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(saldoAnterior)}</td>
   </tr>`;
@@ -4661,7 +4772,7 @@ function renderCaixa(){
   const tbody=document.getElementById('tbody-caixa');
   if(!filtered.length){
     tbody.innerHTML=linhaAnterior+
-      '<tr class="empty-row"><td colspan="7">Nenhuma movimentação no período.</td></tr>';
+      '<tr class="empty-row"><td colspan="8">Nenhuma movimentação no período.</td></tr>';
   }
   else {
     tbody.innerHTML=withSaldo.map(m=>`<tr>
@@ -4672,6 +4783,7 @@ function renderCaixa(){
       <td style="color:var(--green);font-weight:600">${m.entrada?'R$ '+fmtBR(m.entrada):'—'}</td>
       <td style="color:var(--red);font-weight:600">${m.saida?'R$ '+fmtBR(m.saida):'—'}</td>
       <td style="font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(m.saldo)}</td>
+      <td class="td-actions">${m.id?`<button class="act act-del" onclick="apagarMovimento('${m.id}')" title="Apagar este lançamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></button>`:''}</td>
     </tr>`).join('')+linhaAnterior;
   }
   document.getElementById('t-caixa-footer').innerHTML=
@@ -4838,6 +4950,59 @@ function printCaixa(){
 // ---- TRANSFERÊNCIA ----
 function openModalTransferencia(){ document.getElementById('t-data').value=today(); document.getElementById('t-valor').value=''; document.getElementById('t-obs').value=''; document.getElementById('transf-overlay').classList.add('open'); }
 function closeTransf(){ document.getElementById('transf-overlay').classList.remove('open'); }
+
+// ---- LANCAMENTO DIRETO NO BANCO (pedido da Hyllary, 28/09/2026) ----
+// Dinheiro que entrou ou saiu sem ser venda. Fica em data.movimentos, ao lado
+// das transferencias, e conta no fluxo de caixa e no saldo da conta — e so
+// neles: "Recebido do mes" e "A receber" continuam sendo de cliente.
+function openModalLancamento(){
+  document.getElementById('lc-data').value=today();
+  document.getElementById('lc-valor').value='';
+  document.getElementById('lc-desc').value='';
+  document.getElementById('lc-obs').value='';
+  document.getElementById('lanc-overlay').classList.add('open');
+}
+function closeLanc(){ document.getElementById('lanc-overlay').classList.remove('open'); }
+
+// Apaga um lancamento feito direto no banco ou uma transferencia. So estes:
+// linha que veio de contas a pagar/receber nao tem lixeira, porque la o certo
+// e corrigir pela tela do titulo, que guarda o historico das baixas.
+async function apagarMovimento(id){
+  const lista=data.movimentos||[];
+  const m=lista.find(function(x){ return x.id===id; });
+  if(!m){ alert('Não encontrei este lançamento.'); return; }
+  const quanto='R$ '+fmtBR(m.valor);
+  const oque = m.tipo==='transferencia'
+    ? 'a transferência de '+quanto+' ('+CONTA_LABEL[m.origem]+' → '+CONTA_LABEL[m.destino]+')'
+    : 'o lançamento "'+(m.desc||'sem descrição')+'" de '+quanto+' em '+CONTA_LABEL[m.conta];
+  if(!confirm('Apagar '+oque+', de '+fmtDate(m.data)+'?\n\nO saldo da conta volta ao que era. Não há como desfazer.')) return;
+  data.movimentos=lista.filter(function(x){ return x.id!==id; });
+  logFin('Apagou lançamento', (m.tipo==='transferencia'?'Transferência':(m.desc||'Lançamento no banco')),
+    quanto+' · '+fmtDate(m.data));
+  await persist(); render();
+}
+async function saveLanc(){
+  const tipo=document.getElementById('lc-tipo').value;
+  const conta=document.getElementById('lc-conta').value;
+  const valor=parseBR(document.getElementById('lc-valor').value);
+  const dt=document.getElementById('lc-data').value;
+  const desc=document.getElementById('lc-desc').value.trim();
+  if(!valor||valor<=0){ alert('Informe um valor maior que zero.'); return; }
+  if(!dt){ alert('Informe a data.'); return; }
+  if(!desc){ alert('Escreva do que se trata — é o que vai aparecer no fluxo de caixa.'); return; }
+  // Mesma conferencia de data das outras telas: ano fora de 2000-2100 cria
+  // mes fantasma no relatorio (22/09/2026).
+  {
+    const q=conferirDatas({'lançamento':dt});
+    if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+  }
+  if(!data.movimentos) data.movimentos=[];
+  data.movimentos.push({id:genId(), tipo:tipo, conta:conta, valor:valor, data:dt,
+    desc:desc, obs:document.getElementById('lc-obs').value.trim()});
+  logFin(tipo==='entrada'?'Entrada no banco':'Saída do banco',
+    desc+' · '+CONTA_LABEL[conta], 'R$ '+fmtBR(valor)+' · '+fmtDate(dt));
+  await persist(); closeLanc(); render();
+}
 async function saveTransf(){
   const origem=document.getElementById('t-origem').value;
   const destino=document.getElementById('t-destino').value;
